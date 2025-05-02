@@ -1,4 +1,6 @@
 // src/hooks/useWindowsOverlap.ts
+'use client'
+
 import { useEffect } from 'react';
 import { useGroupsStore } from '@/stores/useGroupsStore';
 import { isRectOverlap } from '@/utils/groupUtils';

@@ -1,5 +1,6 @@
 // groupUtils.ts
 
+'use client'
 
 export const GROUP_DISTANCE_THRESHOLD = 1000
 

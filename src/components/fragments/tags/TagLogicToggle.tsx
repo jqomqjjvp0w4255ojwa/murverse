@@ -1,4 +1,6 @@
 // components/fragments/tags/TagLogicToggle.tsx
+'use client'
+
 import React from 'react'
 import type { TagLogicMode } from '@/stores/useFragmentsStore'
 

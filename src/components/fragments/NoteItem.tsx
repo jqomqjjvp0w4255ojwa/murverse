@@ -1,4 +1,6 @@
 // components/fragments/NoteItem.tsx
+'use client'
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Note } from '@/types/fragment';
 import SlideToDeleteButton from './SlideToDeleteButton';

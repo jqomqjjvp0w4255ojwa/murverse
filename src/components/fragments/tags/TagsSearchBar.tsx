@@ -1,4 +1,6 @@
 // components/fragments/tags/TagsSearchBar.tsx
+'use client'
+
 import React from 'react';
 
 interface TagsSearchBarProps {

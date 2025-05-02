@@ -1,4 +1,6 @@
 // src/hooks/useResizable.ts
+'use client'
+
 import { useState, useRef, useCallback } from 'react'
 import { useGroupsStore } from '@/stores/useGroupsStore'
 

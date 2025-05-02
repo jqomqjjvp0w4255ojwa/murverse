@@ -1,4 +1,6 @@
 // components/fragments/NotesList.tsx
+'use client'
+
 import React, { useState } from 'react';
 import { Note } from '@/types/fragment';
 import NoteItem from './NoteItem';

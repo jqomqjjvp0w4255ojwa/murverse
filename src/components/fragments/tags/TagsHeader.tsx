@@ -1,4 +1,6 @@
 // components/fragments/tags/TagsHeader.tsx
+'use client'
+
 import React from 'react';
 
 interface TagsHeaderProps {

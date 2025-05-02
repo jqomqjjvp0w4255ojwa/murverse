@@ -1,4 +1,6 @@
 // hooks/useDragConfirm.ts
+'use client'
+
 import { useState, useRef, useEffect } from 'react'
 
 interface DragZoneOptions {

@@ -1,4 +1,6 @@
 // components/fragments/TagsSelector.tsx
+'use client'
+
 import React, { RefObject } from 'react'
 
 interface TagsSelectorProps {

@@ -1,3 +1,7 @@
+
+'use client'
+
+
 import { useState, useRef, useEffect } from 'react';
 
 import { FloatingWindow, useGroupsStore } from '../stores/useGroupsStore';

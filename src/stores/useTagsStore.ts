@@ -1,3 +1,6 @@
+'use client'
+
+
 import { create } from 'zustand'
 import { createRef, RefObject } from 'react'
 import { persist } from 'zustand/middleware'

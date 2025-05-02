@@ -1,4 +1,6 @@
 // src/lib/FragmentsRepository.ts
+'use client'
+
 
 import { Fragment } from '@/types/fragment'
 

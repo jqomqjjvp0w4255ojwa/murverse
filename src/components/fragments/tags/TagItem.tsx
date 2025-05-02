@@ -1,4 +1,5 @@
 // components/fragments/tags/TagItem.tsx
+'use client'
 import React from 'react';
 
 interface TagItemProps {

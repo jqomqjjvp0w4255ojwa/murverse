@@ -1,4 +1,5 @@
 // services/TagsService.ts
+'use client'
 
 import { Fragment } from '@/types/fragment'
 

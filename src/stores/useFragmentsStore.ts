@@ -1,3 +1,5 @@
+'use client'
+
 import { create } from 'zustand'
 import { Fragment, Note } from '@/types/fragment'
 import { loadFragments, saveFragments } from '@/lib/FragmentsRepository'

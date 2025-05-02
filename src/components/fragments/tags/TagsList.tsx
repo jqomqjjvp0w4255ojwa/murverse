@@ -1,4 +1,6 @@
 // components/fragments/tags/TagsList.tsx
+'use client'
+
 import React, { forwardRef } from 'react';
 import TagItem from './TagItem';
 

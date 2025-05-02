@@ -1,4 +1,5 @@
 // components/fragments/tags/MetaTagsSelector.tsx
+'use client'
 import React from 'react';
 
 interface MetaTag {

@@ -1,4 +1,7 @@
 // hooks/useFloatingWindow.ts
+
+'use client'
+
 import { useRef, useState, useEffect } from 'react'
 import { useGroupDragAndSnap } from './useGroupDragAndSnap'
 import { useCollapsible } from './useCollapsible'

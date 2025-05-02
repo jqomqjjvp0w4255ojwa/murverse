@@ -1,4 +1,5 @@
 // src/types/fragment.ts
+'use client'
 
 /**
  * 筆記結構定義

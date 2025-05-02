@@ -1,4 +1,6 @@
 // components/fragments/InputBarHeader.tsx
+'use client'
+
 import React from 'react'
 
 interface InputBarHeaderProps {

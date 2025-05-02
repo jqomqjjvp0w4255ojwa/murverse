@@ -1,4 +1,6 @@
 // components/fragments/ActionButtons.tsx
+'use client'
+
 import React, { RefObject, useState } from 'react';
 import SlideToDeleteButton from './SlideToDeleteButton';
 
