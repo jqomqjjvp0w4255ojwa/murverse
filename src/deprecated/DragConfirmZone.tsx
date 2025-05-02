@@ -1,3 +1,4 @@
+'use client'
 // components/fragments/DragConfirmZone.tsx
 import React, { RefObject } from 'react'
 
