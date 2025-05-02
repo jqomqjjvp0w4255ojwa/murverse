@@ -1,12 +1,11 @@
-// src/lib/FragmentsRepository.ts
 'use client'
-
 
 import { Fragment } from '@/types/fragment'
 
 const STORAGE_KEY = 'murverse_fragments'
 
 export const saveFragments = (fragments: Fragment[]) => {
+  if (typeof window === 'undefined') return
   localStorage.setItem(STORAGE_KEY, JSON.stringify(fragments))
 }
 
@@ -23,6 +22,8 @@ export const loadFragments = (): Fragment[] => {
 }
 
 export const exportFragments = (fragments: Fragment[]) => {
+  if (typeof window === 'undefined') return
+  
   const blob = new Blob([JSON.stringify(fragments, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -33,6 +34,9 @@ export const exportFragments = (fragments: Fragment[]) => {
 }
 
 export const importFragments = (file: File): Promise<Fragment[]> => {
+  if (typeof window === 'undefined') 
+    return Promise.reject(new Error('Cannot import fragments on server side'))
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (event) => {

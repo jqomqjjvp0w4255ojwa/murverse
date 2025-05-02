@@ -48,6 +48,9 @@ interface FragmentsState {
   removeTagFromFragment: (fragmentId: string, tag: string) => void
 }
 
+// 檢查是否在客戶端環境
+const isClient = typeof window !== 'undefined'
+
 export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   fragments: [],
   searchQuery: '',
@@ -60,11 +63,13 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   mode: 'float',
 
   load: () => {
+    if (!isClient) return
     const fragments = loadFragments()
     set({ fragments })
   },
 
   save: () => {
+    if (!isClient) return
     const { fragments } = get()
     saveFragments(fragments)
   },
@@ -116,7 +121,9 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
       fragments: [newFragment, ...state.fragments]
     }))
 
-    get().save()
+    if (isClient) {
+      get().save()
+    }
   },
 
   addNoteToFragment: (fragmentId, note) => {
@@ -127,7 +134,9 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
-    get().save()
+    if (isClient) {
+      get().save()
+    }
   },
 
   updateNoteInFragment: (fragmentId, noteId, updates) => {
@@ -142,7 +151,9 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
-    get().save()
+    if (isClient) {
+      get().save()
+    }
   },
 
   removeNoteFromFragment: (fragmentId, noteId) => {
@@ -157,7 +168,9 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
-    get().save()
+    if (isClient) {
+      get().save()
+    }
   },
 
   reorderNotesInFragment: (fragmentId, newOrder) => {
@@ -173,7 +186,9 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
         }
       })
     }))
-    get().save()
+    if (isClient) {
+      get().save()
+    }
   },
 
   addTagToFragment: (fragmentId, tag) => {
@@ -188,7 +203,9 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
-    get().save()
+    if (isClient) {
+      get().save()
+    }
   },
 
   removeTagFromFragment: (fragmentId, tag) => {
@@ -203,6 +220,8 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
-    get().save()
+    if (isClient) {
+      get().save()
+    }
   },
 }))
