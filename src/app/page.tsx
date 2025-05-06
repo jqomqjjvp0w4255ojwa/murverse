@@ -18,6 +18,7 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
+import { Fragment } from '@/features/fragments/types/fragment'
 
 // 由於這些組件可能依賴於客戶端的 API，使用動態導入以避免服務器端渲染問題
 const FloatingFragmentsField = dynamic(() => import('@/features/fragments/FloatingFragmentsField'), { ssr: false })
@@ -28,12 +29,21 @@ const TagsFloatingWindow = dynamic(() => import('@/features/tags/TagsFloatingWin
 const GroupFrame = dynamic(() => import('@/features/windows/GroupFrame'), { ssr: false })
 const FragmentsView = dynamic(() => import('@/features/fragments/FragmentsView'), { ssr: false })
 
+
 export default function Home() {
   // 初始設定空字串或預設值，避免服務器端渲染時的不匹配
   const [currentMode, setCurrentMode] = useState('float')
+  const [fragment, setFragment] = useState<Fragment | null>(null)  // 設定 fragment 狀態，初始為 null
+
   
   // 使用 store
   const { mode, load } = useFragmentsStore()
+
+  // 設定關閉函數
+  const handleClose = () => {
+    setFragment(null)  // 關閉時清除 fragment
+  }
+
   
   useEffect(() => {
     // 確保只在客戶端執行
@@ -54,16 +64,16 @@ export default function Home() {
     }
   }, [load, mode])
   
-  // 在服務器端渲染時返回一個基本的佔位符
-  if (typeof window === 'undefined') {
+   // 在服務器端渲染時返回一個基本的佔位符
+   if (typeof window === 'undefined') {
     return <div>Loading...</div>
   }
   
   return (
     <>
       
-        {/* 背景漂浮場 - 使用本地狀態 */}
-        {currentMode === 'float' && (
+         {/* 背景漂浮場 - 使用本地狀態 */}
+      {currentMode === 'float' && (
         <>
           <FloatingFragmentsField />
           <FloatingInputBar />
@@ -72,13 +82,13 @@ export default function Home() {
         </>
       )}
 
-      {/* 清單模式 - 使用本地狀態 */}
-      {currentMode === 'list' && (
+       {/* 清單模式 - 使用本地狀態 */}
+       {currentMode === 'list' && (
         <FragmentsView />
       )}
 
-      {/* 公用：詳情Modal、右下角切換按鈕 */}
-      <FragmentDetailModal />
+        {/* 公用：詳情Modal、右下角切換按鈕 */}
+      <FragmentDetailModal fragment={fragment} onClose={handleClose} />  {/* 傳遞 fragment 和 onClose */}
       <FloatingActionButton />
     </>
   )

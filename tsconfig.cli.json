@@ -2,6 +2,10 @@
 {
     "extends": "./tsconfig.json",
     "compilerOptions": {
+      "baseUrl": "./src",
+      "paths": {
+        "@/*": ["src/*"]
+      },
       "module": "CommonJS",
       "moduleResolution": "node",
       "noEmit": false,

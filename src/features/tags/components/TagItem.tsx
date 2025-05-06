@@ -39,6 +39,7 @@ interface TagItemProps {
   onToggleSelection: () => void;
   onRenameConfirm: () => void;
   onEditCancel: () => void;
+  disabled?: boolean 
 }
 
 const TagItem: React.FC<TagItemProps> = ({

@@ -35,8 +35,7 @@ import { MetaTagsService } from '@/features/tags/services/MetaTagsService'
 import { SearchService } from '@/features/search/SearchService'
 import { useSearchStore } from '@/features/search/useSearchStore'
 import { useAdvancedSearch } from '@/features/search/useAdvancedSearch'
-
-
+import { SYSTEM_TAGS, isSystemTag } from '@/features/tags/constants/systemTags'
 
 
 
@@ -384,21 +383,26 @@ const TagsFloatingWindow = forwardRef<HTMLDivElement>((props, ref) => {
   
   // 添加標籤
   const handleAddTag = () => {
-    const t = search.trim()
-    if (!t) return
+    const raw = search.trim()
+    if (!raw) return
   
-    // 1️⃣ 先把新標籤加入全域清單
-    if (!allTags.some(tag => tag.name === t)) {
-      setAllTags([...allTags, { name: t, count: 1 }])
+    const clean = raw.replace(/^#/, '')   // 去掉輸入時可能打的「#」
+    if (isSystemTag(clean)) {
+      setSearch('')
+      return
+    }
+    
+  
+    if (!allTags.some(tag => tag.name === clean)) {
+      setAllTags([...allTags, { name: clean, count: 1 }])
     }
     const stored = JSON.parse(localStorage.getItem('mur_tags_global') || '[]') as string[]
-    if (!stored.includes(t)) {
-      localStorage.setItem('mur_tags_global', JSON.stringify([...stored, t]))
+    if (!stored.includes(clean)) {
+      localStorage.setItem('mur_tags_global', JSON.stringify([...stored, clean]))
     }
   
-    // 2️⃣ ✅ 只有「與輸入窗連線」時才同步到 pendingTags
     if (mode === 'add') {
-      addPendingTag(t)
+      addPendingTag(clean)
     }
   
     setSearch('')
@@ -434,6 +438,9 @@ const TagsFloatingWindow = forwardRef<HTMLDivElement>((props, ref) => {
   }
   // 選擇標籤
   const handleTagSelect = (t: string) => {
+
+    if (mode === 'add' && isSystemTag(t)) return
+    
     if (editMode) return
   
     recordTagUsage(t)

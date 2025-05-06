@@ -1,100 +1,168 @@
 'use client'
 
-/* 
-👉 作用： 彈出顯示單一碎片詳細內容的 Modal
-🔍 功能： 顯示被選中的 fragment 的內容、標籤、筆記與時間資訊。
-有基本的「關閉」與「進入編輯模式」按鈕（編輯功能預留）。
-顯示資料來源來自 useFragmentsStore().selectedFragment */
+import { Fragment } from '@/features/fragments/types/fragment'
+import { useEffect, useRef } from 'react'
 
-import { Fragment, Note } from '@/features/fragments/types/fragment'
-import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
-import { useEffect, useState } from 'react'
+interface FragmentDetailModalProps {
+  fragment: Fragment | null
+  onClose: () => void
+}
 
+export default function FragmentDetailModal({ fragment, onClose }: FragmentDetailModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null)
 
-export default function FragmentDetailModal() {
-  const { selectedFragment, setSelectedFragment } = useFragmentsStore()
-  const [isEditMode, setIsEditMode] = useState(false)
-
+  // 點擊外部關閉
   useEffect(() => {
-    if (selectedFragment) {
-      setIsEditMode(false)
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+        onClose()
+      }
     }
-  }, [selectedFragment])
-  console.log('目前 selectedFragment', selectedFragment)
 
-  if (!selectedFragment) return null
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick)
+    }
+  }, [onClose])
 
-  const handleClose = () => {
-    setSelectedFragment(null)
+  // ESC 鍵關閉
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [onClose])
+
+  // 如果沒有碎片，不顯示彈窗
+  if (!fragment) return null
+
+  // 決定碎片方向
+  const hasEnglish = /[a-zA-Z]/.test(fragment.content)
+  const isOnlyCJK = /^[\u4e00-\u9fa5\u3040-\u30ff\s]+$/.test(fragment.content)
+  const direction = (fragment.direction) || (
+    hasEnglish || /\d/.test(fragment.content) || /[{}[\]()=;:]/.test(fragment.content)
+      ? 'horizontal'
+      : isOnlyCJK ? 'vertical' : 'horizontal'
+  )
+
+  // 格式化日期
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded shadow-lg w-full max-w-xl relative transition-all duration-300 transform scale-95 hover:scale-100">
-        {/* 關閉按鈕 */}
-        <button
-          className="absolute top-2 right-2 text-gray-500 hover:text-black"
-          onClick={handleClose}
-        >
-          ✖️
-        </button>
+    <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+      <div
+        ref={modalRef}
+        className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[80vh] overflow-auto"
+        style={{
+          backgroundColor: '#fffbef',
+          border: '1px solid rgba(0, 0, 0, 0.1)',
+          padding: '24px',
+        }}
+      >
+        {/* 模態框頂部 */}
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-semibold text-gray-800">碎片詳情</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 focus:outline-none"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
 
-        {/* 內容區 */}
-        {isEditMode ? (
+        {/* 碎片內容 */}
+        <div className="space-y-6">
+          {/* 主內容 */}
           <div>
-            <h2 className="text-xl font-bold mb-4">編輯模式</h2>
-            <p className="text-gray-500">（這裡預留未來編輯功能）</p>
+            <h4 className="text-sm font-medium text-gray-500 mb-2">主內容</h4>
+            <div
+              className="p-4 bg-white rounded border border-gray-100 shadow-sm"
+              style={{
+                writingMode: direction === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
+                height: direction === 'vertical' ? '300px' : 'auto',
+                minHeight: '100px',
+                overflowX: 'auto',
+                fontSize: '16px',
+                lineHeight: '1.6',
+              }}
+            >
+              {fragment.content}
+            </div>
           </div>
-        ) : (
-          <div>
-            <h2 className="text-2xl font-bold mb-4">{selectedFragment.content}</h2>
 
-            <div className="mb-4">
-              <strong>標籤：</strong>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {selectedFragment.tags.length > 0 ? (
-                  selectedFragment.tags.map((tag: string) => (
-                    <span
-                      key={tag}
-                      className="px-2 py-1 bg-gray-200 rounded text-sm"
-                    >
-                      #{tag}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-gray-400">（無標籤）</span>
-                )}
+          {/* 筆記 */}
+          {fragment.notes && fragment.notes.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-500 mb-2">筆記</h4>
+              <div className="space-y-3">
+                {fragment.notes.map((note) => (
+                  <div
+                    key={note.id}
+                    className="p-3 bg-gray-50 rounded"
+                    style={{
+                      backgroundColor: '#f9f6e9',
+                      writingMode: direction === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
+                      height: direction === 'vertical' ? '200px' : 'auto',
+                      minHeight: direction === 'vertical' ? '200px' : '50px',
+                      overflowX: 'auto',
+                    }}
+                  >
+                    {note.value}
+                  </div>
+                ))}
               </div>
             </div>
+          )}
 
-            <div className="mb-4">
-              <strong>筆記：</strong>
-              <ul className="list-disc list-inside mt-1 space-y-1">
-                {selectedFragment.notes.length > 0 ? (
-                  selectedFragment.notes.map((note: Note) => (
-                    <li key={note.id}>
-                      <strong>{note.title}：</strong> {note.value}
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-gray-400">（無筆記）</li>
-                )}
-              </ul>
+          {/* 標籤 */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-500 mb-2">標籤</h4>
+            <div className="flex flex-wrap gap-2">
+              {fragment.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-3 py-1 text-sm rounded"
+                  style={{
+                    backgroundColor: '#f3e8c7',
+                    color: '#8d6a38',
+                    borderRadius: '16px',
+                  }}
+                >
+                  #{tag}
+                </span>
+              ))}
             </div>
-
-            <div className="text-sm text-gray-500 mt-4 space-y-1">
-              <div>建立於：{new Date(selectedFragment.createdAt).toLocaleString()}</div>
-              <div>最後修改：{new Date(selectedFragment.updatedAt).toLocaleString()}</div>
-            </div>
-
-            <button
-              className="mt-6 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              onClick={() => setIsEditMode(true)}
-            >
-              編輯
-            </button>
           </div>
-        )}
+
+          {/* 創建時間 */}
+          <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
+            <span className="text-xs text-gray-400">
+              創建於 {formatDate(fragment.createdAt)}
+            </span>
+            <span className="text-xs text-gray-400">
+              {fragment.updatedAt && fragment.updatedAt !== fragment.createdAt
+                ? `更新於 ${formatDate(fragment.updatedAt)}`
+                : ''}
+            </span>
+          </div>ㄇ
+        </div>
       </div>
     </div>
   )
