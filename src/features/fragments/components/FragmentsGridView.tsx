@@ -178,7 +178,19 @@ export default function FragmentsGridView({
                       order: 2, // 中間
                       marginLeft: '10px'
                     }}
-                  >
+                    >
+                    {/* 顯示筆記標題 */}
+                    <div 
+                      style={{
+                        fontSize: '14px', 
+                        fontWeight: 'bold', 
+                        color: '#333', 
+                        marginBottom: '4px'
+                      }}
+                    >
+                      {fragment.notes[0]?.title}
+                    </div>
+                    {/* 顯示筆記內容 */}
                     {note}
                   </div>
                 )}
