@@ -1,4 +1,3 @@
-// src/types/fragment.ts
 'use client'
 
 /**
@@ -66,6 +65,11 @@ export type FragmentType =
   | 'collection'; // 集合
 
 /**
+ * 片段顯示方向
+ */
+export type FragmentDirection = 'horizontal' | 'vertical';
+
+/**
  * 片段搜尋選項
  */
 export interface FragmentSearchOptions {
@@ -103,12 +107,11 @@ export interface Fragment {
   lastEditor?: string;          // 最後編輯者
   status?: 'draft' | 'published' | 'archived'; // 狀態
 
-  // === 額外顯示設定欄位（UI 專用） ===
-  direction?: 'horizontal' | 'vertical'; // 顯示方向（橫／豎排）
-  showContent?: boolean;                 // 是否顯示主內容
-  showNote?: boolean;                    // 是否顯示筆記
-  showTags?: boolean;                    // 是否顯示標籤
-
+  // === UI 顯示控制 ===
+  direction?: FragmentDirection; // 顯示方向（橫／豎排）
+  showContent?: boolean;         // 是否顯示主內容
+  showNote?: boolean;            // 是否顯示筆記
+  showTags?: boolean;            // 是否顯示標籤
 }
 
 /**
@@ -171,5 +174,3 @@ export type FragmentViewMode =
   | 'graph'     // 圖表視圖
   | 'calendar'  // 日曆視圖
   | 'timeline'; // 時間線視圖
-
-  

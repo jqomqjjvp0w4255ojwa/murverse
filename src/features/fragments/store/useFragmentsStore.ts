@@ -5,17 +5,13 @@ import { Fragment, Note } from '@/features/fragments/types/fragment'
 import { loadFragments, saveFragments } from '@/features/fragments/services/FragmentsRepository'
 import { v4 as uuidv4 } from 'uuid'
 import { ParsedSearch, SearchToken } from '@/features/search/useAdvancedSearch'
-import {
-  matchesSearchToken,
-} from '@/features/search/searchHelpers'
-import { matchText } from '@/features/search/searchHelpers'
-import {
-  matchFragment,
-} from '@/features/search/searchHelpers'
+import { matchText, matchFragment, matchesSearchToken } from '@/features/search/searchHelpers'
+import { isDateInRange } from '@/features/fragments/utils'
+import { SORT_FIELDS, SORT_ORDERS } from '@/features/fragments/constants'
 
-
-type SortField = 'createdAt' | 'content' | 'updatedAt'
-type SortOrder = 'asc' | 'desc'
+// 使用常量來定義排序方式
+type SortField = typeof SORT_FIELDS[keyof typeof SORT_FIELDS]
+type SortOrder = typeof SORT_ORDERS[keyof typeof SORT_ORDERS]
 type Mode = 'float' | 'list'
 
 export type TagLogicMode = 'AND' | 'OR'
@@ -24,7 +20,6 @@ interface FragmentsState {
   fragments: Fragment[]
   searchQuery: string
   searchKeyword: string
-  setSearchKeyword: (keyword: string) => void
   selectedTags: string[]
   excludedTags: string[]
   tagLogicMode: TagLogicMode
@@ -47,6 +42,7 @@ interface FragmentsState {
   setSelectedFragment: (fragment: Fragment | null) => void
   setMode: (mode: Mode) => void
   setAdvancedSearch: (search: ParsedSearch | null) => void
+  setSearchKeyword: (keyword: string) => void
 
   // 進階功能
   getFilteredFragments: () => Fragment[]
@@ -65,44 +61,6 @@ interface FragmentsState {
 // 檢查是否在客戶端環境
 const isClient = typeof window !== 'undefined'
 
-// 檢查日期是否在指定範圍內
-const isDateInRange = (dateStr: string, timeRange: string, customStart?: Date, customEnd?: Date): boolean => {
-  const date = new Date(dateStr)
-  const now = new Date()
-  
-  // 重置當前時間為當天開始（00:00:00）
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  
-  switch(timeRange) {
-    case 'today':
-      return date >= today
-    case 'yesterday': {
-      const yesterday = new Date(today)
-      yesterday.setDate(yesterday.getDate() - 1)
-      return date >= yesterday && date < today
-    }
-    case 'week': {
-      const weekStart = new Date(today)
-      weekStart.setDate(today.getDate() - today.getDay()) // 設為本週日（一週的開始）
-      return date >= weekStart
-    }
-    case 'month': {
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-      return date >= monthStart
-    }
-    case 'custom':
-      return (
-        (!customStart || date >= customStart) && 
-        (!customEnd || date <= customEnd)
-      )
-    case 'all':
-    default:
-      return true
-  }
-}
-
-
-
 export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   fragments: [],
   searchQuery: '',
@@ -110,36 +68,70 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   selectedTags: [],
   excludedTags: [],
   tagLogicMode: 'AND',
-  sortField: 'createdAt',
-  sortOrder: 'desc',
+  sortField: SORT_FIELDS.CREATED_AT,
+  sortOrder: SORT_ORDERS.DESC,
   selectedFragment: null,
   mode: 'float',
   advancedSearch: null,
 
+  // 載入碎片資料
   load: () => {
     if (!isClient) return
     const fragments = loadFragments()
     set({ fragments })
   },
 
+  // 儲存碎片資料
   save: () => {
     if (!isClient) return
     const { fragments } = get()
     saveFragments(fragments)
   },
 
-  setFragments: (fragments) => set({ fragments }),
+  // 設置整個碎片陣列
+  setFragments: (fragments) => {
+    set({ fragments })
+    // 自動儲存到本地
+    if (isClient) {
+      localStorage.removeItem('fragment_positions') 
+      setTimeout(() => saveFragments(fragments), 0)
+    }
+  },
+
+  // 設置搜尋查詢
   setSearchQuery: (query) => set({ searchQuery: query }),
+  
+  // 設置選定標籤
   setSelectedTags: (tags) => set({ selectedTags: tags }),
+  
+  // 設置排除的標籤
   setExcludedTags: (tags) => set({ excludedTags: tags }),
+  
+  // 設置標籤邏輯模式（AND/OR）
   setTagLogicMode: (mode) => set({ tagLogicMode: mode }),
+  
+  // 設置排序欄位
   setSortField: (field) => set({ sortField: field }),
+  
+  // 設置排序順序
   setSortOrder: (order) => set({ sortOrder: order }),
+  
+  // 設置選定的碎片
   setSelectedFragment: (fragment) => set({ selectedFragment: fragment }),
+  
+  // 設置顯示模式
   setMode: (mode) => set({ mode }),
+  
+  // 設置進階搜尋
   setAdvancedSearch: (search) => set({ advancedSearch: search }),
+  
+  // 設置搜尋關鍵字
   setSearchKeyword: (keyword) => set({ searchKeyword: keyword }),
 
+  /**
+   * 獲取篩選後的碎片
+   * 基於關鍵字搜尋、標籤篩選等條件
+   */
   getFilteredFragments: () => {
     const {
       fragments,
@@ -150,21 +142,30 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
       advancedSearch
     } = get() as FragmentsState
   
-    const mode = advancedSearch?.matchMode ?? 'substring'
-    
+    // 如果有進階搜尋，優先使用
     if (advancedSearch) {
       return get().getFilteredFragmentsByAdvancedSearch()
     }
   
+    const mode = 'substring' // 默認搜尋模式
+    
     return fragments.filter(fragment => {
+      // 關鍵字篩選
       if (searchQuery && !matchText(fragment.content, searchQuery, mode)) {
-        return false
+        // 如果有關鍵字且內容不匹配，還檢查筆記是否匹配
+        const noteMatches = fragment.notes.some(note => 
+          matchText(note.title, searchQuery, mode) || 
+          matchText(note.value, searchQuery, mode)
+        )
+        if (!noteMatches) return false
       }
   
+      // 排除標籤篩選
       if (excludedTags.length > 0 && excludedTags.some(tag => fragment.tags.includes(tag))) {
         return false
       }
   
+      // 選定標籤篩選
       if (selectedTags.length === 0) return true
   
       return tagLogicMode === 'AND'
@@ -173,8 +174,9 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     })
   },
 
-  
-
+  /**
+   * 基於進階搜尋條件獲取篩選後的碎片
+   */
   getFilteredFragmentsByAdvancedSearch: () => {
     const { fragments, advancedSearch } = get()
     if (!advancedSearch) return fragments
@@ -200,12 +202,14 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
         return false
       }
   
-      // 使用修改後的 matchFragment 函數進行搜尋
+      // 使用 matchFragment 函數進行搜尋
       return matchFragment(fragment, tokens, matchMode, scopes)
     })
   },
 
-
+  /**
+   * 添加新碎片
+   */
   addFragment: (content, tags, notes) => {
     const now = new Date().toISOString()
     const newFragment: Fragment = {
@@ -222,11 +226,15 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
       fragments: [newFragment, ...state.fragments]
     }))
 
+    // 自動儲存
     if (isClient) {
       get().save()
     }
   },
 
+  /**
+   * 添加筆記到碎片
+   */
   addNoteToFragment: (fragmentId, note) => {
     set(state => ({
       fragments: state.fragments.map(f =>
@@ -235,11 +243,16 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
+    
+    // 自動儲存
     if (isClient) {
       get().save()
     }
   },
 
+  /**
+   * 更新碎片中的筆記
+   */
   updateNoteInFragment: (fragmentId, noteId, updates) => {
     set(state => ({
       fragments: state.fragments.map(f =>
@@ -252,11 +265,16 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
+    
+    // 自動儲存
     if (isClient) {
       get().save()
     }
   },
 
+  /**
+   * 從碎片移除筆記
+   */
   removeNoteFromFragment: (fragmentId, noteId) => {
     set(state => ({
       fragments: state.fragments.map(f =>
@@ -269,17 +287,29 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
+    
+    // 自動儲存
     if (isClient) {
       get().save()
     }
   },
 
+  /**
+   * 重新排序碎片中的筆記
+   */
   reorderNotesInFragment: (fragmentId, newOrder) => {
     set(state => ({
       fragments: state.fragments.map(f => {
         if (f.id !== fragmentId) return f
+        
+        // 創建筆記映射，保持筆記內容引用
         const notesMap = Object.fromEntries(f.notes.map(n => [n.id, n]))
-        const orderedNotes = newOrder.map(id => notesMap[id]).filter(Boolean)
+        
+        // 根據新順序重新排列筆記
+        const orderedNotes = newOrder
+          .map(id => notesMap[id])
+          .filter(Boolean) // 過濾出任何未找到的筆記ID
+        
         return {
           ...f,
           notes: orderedNotes,
@@ -287,11 +317,16 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
         }
       })
     }))
+    
+    // 自動儲存
     if (isClient) {
       get().save()
     }
   },
 
+  /**
+   * 添加標籤到碎片
+   */
   addTagToFragment: (fragmentId, tag) => {
     set(state => ({
       fragments: state.fragments.map(f =>
@@ -304,11 +339,16 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
+    
+    // 自動儲存
     if (isClient) {
       get().save()
     }
   },
 
+  /**
+   * 從碎片移除標籤
+   */
   removeTagFromFragment: (fragmentId, tag) => {
     set(state => ({
       fragments: state.fragments.map(f =>
@@ -321,6 +361,8 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
           : f
       )
     }))
+    
+    // 自動儲存
     if (isClient) {
       get().save()
     }

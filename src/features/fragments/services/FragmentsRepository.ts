@@ -1,25 +1,19 @@
+//FragmentsRepository.ts
+
 'use client'
 
-import { Fragment } from '@/features/fragments/types/fragment'
+import { Fragment } from '../types/fragment'
+import { STORAGE_KEY } from '../constants'
+import { decideDirection } from '../utils'
 
-const STORAGE_KEY = 'murverse_fragments'
-
-function decideDirection(content: string, note?: string): 'horizontal' | 'vertical' {
-  const full = `${content} ${note ?? ''}`
-  const hasEnglish = /[a-zA-Z]/.test(full)
-  const isOnlyCJK = /^[\u4e00-\u9fa5\u3040-\u30ff\s]+$/.test(full)
-
-  // Remove the random condition and make it deterministic:
-  if (hasEnglish || /\d/.test(full) || /[{}[\]()=;:]/.test(full)) return 'horizontal'
-  if (isOnlyCJK) return 'vertical' // Removed Math.random() < 0.3 condition
-  return 'horizontal'
-}
-
+/**
+ * 豐富碎片數據（填充預設值）
+ */
 function enrichFragment(f: Fragment): Fragment {
   if (!f.direction) {
     return {
       ...f,
-      direction: decideDirection(f.content, f.notes?.[0]?.value),
+      direction: decideDirection(f.content, f.notes?.[0]?.value, false), // 存儲時使用確定性邏輯
       showContent: true,
       showNote: true,
       showTags: true,
@@ -28,11 +22,17 @@ function enrichFragment(f: Fragment): Fragment {
   return f
 }
 
+/**
+ * 儲存碎片資料到 localStorage
+ */
 export const saveFragments = (fragments: Fragment[]) => {
   if (typeof window === 'undefined') return
   localStorage.setItem(STORAGE_KEY, JSON.stringify(fragments))
 }
 
+/**
+ * 從 localStorage 載入碎片資料
+ */
 export const loadFragments = (): Fragment[] => {
   if (typeof window === 'undefined') return []
   const data = localStorage.getItem(STORAGE_KEY)
@@ -46,6 +46,9 @@ export const loadFragments = (): Fragment[] => {
   }
 }
 
+/**
+ * 匯出碎片資料到檔案
+ */
 export const exportFragments = (fragments: Fragment[]) => {
   if (typeof window === 'undefined') return
   const blob = new Blob([JSON.stringify(fragments, null, 2)], { type: 'application/json' })
@@ -57,6 +60,9 @@ export const exportFragments = (fragments: Fragment[]) => {
   URL.revokeObjectURL(url)
 }
 
+/**
+ * 從檔案匯入碎片資料
+ */
 export const importFragments = (file: File): Promise<Fragment[]> => {
   if (typeof window === 'undefined') 
     return Promise.reject(new Error('Cannot import fragments on server side'))

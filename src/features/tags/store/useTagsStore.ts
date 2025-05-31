@@ -1,6 +1,26 @@
+
+
+/**
+ * 全局標籤池
+ * 
+ * 單用戶模式：從本地存儲加載
+ * 多用戶模式：TODO - 從服務器加載所有公共標籤
+ */
+//globalTags: [],
+
+/**
+ * 添加全局標籤
+ * 
+ * 單用戶模式：直接添加到本地存儲
+ * 多用戶模式：TODO - 添加權限檢查和服務器同步
+ */
+//addGlobalTag: (tagName) => {
+// 現有實現...
+//},
+
+
+
 'use client'
-
-
 import { create } from 'zustand'
 import { createRef, RefObject } from 'react'
 import { persist } from 'zustand/middleware'

@@ -34,6 +34,8 @@ export class SearchService {
         } = options;
         
         console.log("SearchService.search 執行，範圍:", scopes, "關鍵字:", keyword);
+
+        
       
       return fragments.filter(fragment => {
         // 1. 時間範圍檢查

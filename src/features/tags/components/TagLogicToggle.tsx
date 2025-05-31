@@ -16,10 +16,10 @@
  */
 
 
-'use client'
-
 import React from 'react'
 import type { TagLogicMode } from '@/features/fragments/store/useFragmentsStore'
+import { useSearchStore } from '@/features/search/useSearchStore' // 引入 useSearchStore
+import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
 
 interface TagLogicToggleProps {
   tagLogicMode: TagLogicMode
@@ -44,6 +44,29 @@ const TagLogicToggle: React.FC<TagLogicToggleProps> = ({
   excludedTags,
   setExcludedTags
 }) => {
+  // 在組件中獲取 fragments 和 executeSearch 方法
+  const fragments = useFragmentsStore.getState().fragments
+  
+  const handleClearSelection = () => {
+    if (mode === 'add') {
+      setPendingTags([])
+    } else {
+      // 清除選取標籤
+      setSelectedTags([])
+      setExcludedTags([])
+      
+      // 同步更新 SearchStore 的狀態
+      const searchStore = useSearchStore.getState()
+      searchStore.setSelectedTags([])
+      searchStore.setExcludedTags([])
+      
+      // 重新執行搜索以更新顯示的碎片
+      searchStore.setKeyword('')
+      searchStore.setScopes(['fragment'])
+      searchStore.executeSearch(fragments)
+    }
+  }
+
   return (
     <div className="flex justify-between items-center mb-3">
       <div className="flex items-center">
@@ -66,14 +89,7 @@ const TagLogicToggle: React.FC<TagLogicToggleProps> = ({
         </span>
       </div>
       <button
-        onClick={() => {
-          if (mode === 'add') {
-            setPendingTags([])
-          } else {
-            setSelectedTags([])
-            setExcludedTags([])
-          }
-        }}
+        onClick={handleClearSelection}
         className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-gray-600"
       >
         清除選取

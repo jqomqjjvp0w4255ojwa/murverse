@@ -15,26 +15,42 @@
 這個檔案就是你專案的主畫面邏輯與元件組合點。
  */
 
-import { useEffect, useRef, useState } from 'react'
+
+import { useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
 import { Fragment } from '@/features/fragments/types/fragment'
+import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
+import type { ForwardRefExoticComponent, RefAttributes, HTMLAttributes } from 'react'
+import type { FC } from 'react'
 
-// 由於這些組件可能依賴於客戶端的 API，使用動態導入以避免服務器端渲染問題
+// 正確處理 forwardRef + dynamic import 的 TagsFloatingWindow
+const TagsFloatingWindow = dynamic(() =>
+  import('@/features/tags/TagsFloatingWindow').then(mod => ({
+    default: (mod as any).default
+  })),
+  { ssr: false }
+)
+
+// 其他元件照舊
 const FloatingFragmentsField = dynamic(() => import('@/features/fragments/FloatingFragmentsField'), { ssr: false })
 const FragmentDetailModal = dynamic(() => import('@/features/fragments/components/FragmentDetailModal'), { ssr: false })
 const FloatingInputBar = dynamic(() => import('@/features/input/FloatingInputBar'), { ssr: false })
 const FloatingActionButton = dynamic(() => import('@/features/fragments/components/FloatingActionButton'), { ssr: false })
-const TagsFloatingWindow = dynamic(() => import('@/features/tags/TagsFloatingWindow'), { ssr: false })
 const GroupFrame = dynamic(() => import('@/features/windows/GroupFrame'), { ssr: false })
 const FragmentsView = dynamic(() => import('@/features/fragments/FragmentsView'), { ssr: false })
 
+// 標籤拖曳相關組件
+const TagDragPreview = dynamic(() => import('@/features/fragments/components/TagDragPreview'), { ssr: false })
+const DragToDeleteZone = dynamic(() => import('@/features/tags/components/DragToDeleteZone'), { ssr: false })
 
 export default function Home() {
   // 初始設定空字串或預設值，避免服務器端渲染時的不匹配
   const [currentMode, setCurrentMode] = useState('float')
   const [fragment, setFragment] = useState<Fragment | null>(null)  // 設定 fragment 狀態，初始為 null
 
+  // 使用標籤拖曳管理器
+  const { draggingTag, dragPosition, isDragging } = useTagDragManager()
   
   // 使用 store
   const { mode, load } = useFragmentsStore()
@@ -44,7 +60,6 @@ export default function Home() {
     setFragment(null)  // 關閉時清除 fragment
   }
 
-  
   useEffect(() => {
     // 確保只在客戶端執行
     load()
@@ -64,15 +79,14 @@ export default function Home() {
     }
   }, [load, mode])
   
-   // 在服務器端渲染時返回一個基本的佔位符
-   if (typeof window === 'undefined') {
+  // 在服務器端渲染時返回一個基本的佔位符
+  if (typeof window === 'undefined') {
     return <div>Loading...</div>
   }
   
   return (
     <>
-      
-         {/* 背景漂浮場 - 使用本地狀態 */}
+      {/* 背景漂浮場 - 使用本地狀態 */}
       {currentMode === 'float' && (
         <>
           <FloatingFragmentsField />
@@ -82,14 +96,44 @@ export default function Home() {
         </>
       )}
 
-       {/* 清單模式 - 使用本地狀態 */}
-       {currentMode === 'list' && (
+      {/* 清單模式 - 使用本地狀態 */}
+      {currentMode === 'list' && (
         <FragmentsView />
       )}
 
-        {/* 公用：詳情Modal、右下角切換按鈕 */}
+      {/* 公用：詳情Modal、右下角切換按鈕 */}
       <FragmentDetailModal fragment={fragment} onClose={handleClose} />  {/* 傳遞 fragment 和 onClose */}
       <FloatingActionButton />
+      
+      {/* 標籤拖曳預覽 - 在所有視圖模式下都顯示 */}
+      {isDragging && draggingTag && dragPosition && (
+        <TagDragPreview tag={draggingTag} position={dragPosition} />
+      )}
+      
+      {/* 標籤刪除區域 - 只在拖曳標籤時顯示 */}
+      <DragToDeleteZone position="bottom-right" />
+      
+      {/* 全局樣式 - 用於標籤拖曳目標高亮 */}
+      <style jsx global>{`
+        /* 拖曳目標高亮樣式 */
+        .fragment-card.tag-drop-target {
+          box-shadow: 0 0 0 2px rgba(201, 155, 53, 0.7) !important;
+          transform: scale(1.02) !important;
+          transition: all 0.2s ease !important;
+        }
+        
+        /* 直排標籤文字修正 */
+        .tag-button[style*="writing-mode: vertical-rl"] {
+          white-space: normal !important;
+          overflow: hidden !important;
+          word-break: break-all !important;
+          line-height: 1.2 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          text-align: center !important;
+        }
+      `}</style>
     </>
   )
 }

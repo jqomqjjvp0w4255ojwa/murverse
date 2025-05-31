@@ -36,6 +36,14 @@ import { SearchService } from '@/features/search/SearchService'
 import { useSearchStore } from '@/features/search/useSearchStore'
 import { useAdvancedSearch } from '@/features/search/useAdvancedSearch'
 import { SYSTEM_TAGS, isSystemTag } from '@/features/tags/constants/systemTags'
+import TagDropZone from './components/TagDropZone'
+import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
+import { useTagCollectionStore } from '@/features/tags/store/useTagCollectionStore'
+import { useSingleUserTagSync } from '@/shared/hook/useSingleUserTagSync'
+import { useGlobalTagsStore } from '@/features/tags/store/useGlobalTagsStore'
+
+
+//import MyTagsPanel from './MyTagsPanel'
 
 
 
@@ -164,7 +172,17 @@ const TagsFloatingWindow = forwardRef<HTMLDivElement>((props, ref) => {
   const [searchExecuted, setSearchExecuted] = useState(false)
   const [noResults, setNoResults] = useState(false)
   const [searchedKeyword, setSearchedKeyword] = useState('')
-
+  const { isDragging, draggingTag, isOverTagWindow } = useTagDragManager()
+  const { isCollected, addTag } = useTagCollectionStore()
+  const [dropFeedback, setDropFeedback] = useState<{ visible: boolean, message: string, success: boolean }>({
+    visible: false,
+    message: '',
+    success: false
+  })
+  const { syncAddTag, syncRemoveTags } = useSingleUserTagSync()
+  const { collectedTags } = useTagCollectionStore()
+  const [tagViewMode, setTagViewMode] = useState<'personal' | 'global'>('personal')
+  const { isMultiUserMode, globalTags: realGlobalTags, loadGlobalTags } = useGlobalTagsStore()
   
   
   // 新增：過濾後的碎片狀態
@@ -383,15 +401,17 @@ const TagsFloatingWindow = forwardRef<HTMLDivElement>((props, ref) => {
   
   // 添加標籤
   const handleAddTag = () => {
-    const raw = search.trim()
-    if (!raw) return
-  
-    const clean = raw.replace(/^#/, '')   // 去掉輸入時可能打的「#」
-    if (isSystemTag(clean)) {
-      setSearch('')
-      return
-    }
-    
+      const raw = search.trim()
+      if (!raw) return
+
+      const clean = raw.replace(/^#/, '')
+      if (isSystemTag(clean)) {
+        setSearch('')
+        return
+      }
+      
+      
+        
   
     if (!allTags.some(tag => tag.name === clean)) {
       setAllTags([...allTags, { name: clean, count: 1 }])
@@ -405,8 +425,14 @@ const TagsFloatingWindow = forwardRef<HTMLDivElement>((props, ref) => {
       addPendingTag(clean)
     }
   
-    setSearch('')
-  }
+    syncAddTag(clean)
+  
+      if (mode === 'add') {
+        addPendingTag(clean)
+      }
+
+      setSearch('')
+    }
 
   // 修改：添加特殊標籤，使用 MetaTagsService
   const handleAddMetaTag = (tag: MetaTag) => {
@@ -556,29 +582,28 @@ const TagsFloatingWindow = forwardRef<HTMLDivElement>((props, ref) => {
 
   // 刪除選中的標籤
   const handleDeleteSelectedTags = () => {
-    if (!selectedTagsToDelete.length) return
-    
-    if (!confirm(`確定要刪除這 ${selectedTagsToDelete.length} 個標籤嗎？此操作無法撤銷。`)) return
-    
+  if (!selectedTagsToDelete.length || !confirm(`確定要刪除這 ${selectedTagsToDelete.length} 個標籤嗎？此操作無法撤銷。`)) return
+     syncRemoveTags(selectedTagsToDelete)
+
     // 從 allTags 中移除
     setAllTags(allTags.filter(tag => !selectedTagsToDelete.includes(tag.name)))
     
     // 從本地存儲中移除
-    const stored = JSON.parse(localStorage.getItem('mur_tags_global') || '[]') as string[]
+   const stored = JSON.parse(localStorage.getItem('mur_tags_global') || '[]') as string[]
     localStorage.setItem('mur_tags_global', JSON.stringify(
       stored.filter(t => !selectedTagsToDelete.includes(t))
     ))
     
     // 從 pendingTags 和 selectedTags、excludedTags 中移除
-    if (mode === 'add') {
+      if (mode === 'add') {
       setPendingTags(pendingTags.filter((t: string) => !selectedTagsToDelete.includes(t)))
     } else {
       setSelectedTags(selectedTags.filter((t: string) => !selectedTagsToDelete.includes(t)))
       setExcludedTags(excludedTags.filter((t: string) => !selectedTagsToDelete.includes(t)))
     }
-    
+      
     // 從所有碎片中移除這些標籤
-    const updatedFragments = fragments.map((fragment: any) => {
+      const updatedFragments = fragments.map((fragment: any) => {
       if (fragment.tags.some((t: string) => selectedTagsToDelete.includes(t))) {
         return {
           ...fragment,
@@ -629,6 +654,9 @@ const TagsFloatingWindow = forwardRef<HTMLDivElement>((props, ref) => {
   // 過濾並排序標籤
   const getShownTags = () => {
     const tokens = SearchService.parseSearchQuery(search, 'substring')
+    
+
+    
   
     return allTags
       .filter(t => {
@@ -704,181 +732,320 @@ const TagsFloatingWindow = forwardRef<HTMLDivElement>((props, ref) => {
       }
     }, [])
 
-  return (
-    <div
-      id="tags-floating-window"
-      ref={combinedRef}
-      onMouseDown={handleMouseDown}
-      className={`fixed z-[20] bg-white border border-gray-400 rounded-2xl shadow-lg select-none 
-        ${isCollapsed ? 'px-3 py-2' : 'p-4'}`}
-      style={{
-        top: isFullScreen ? 0 : pos.y,
-        left: pos.x,
-        width: isCollapsed ? '350px' : '350px',
-        height: isFullScreen ? '100vh' : (isCollapsed ? '56px' : 'auto'),
-        transition: 'width 0.3s, height 0.3s'
-      }}
-    >
-      {isCollapsed ? (
-        // 收合狀態
-        <div className="flex justify-between items-center w-full h-full cursor-move">
-          <div className="flex items-center gap-1 text-base font-semibold text-gray-700">
-            <span>{mode === 'add' ? '✔️' : '💬'}</span>
-            <span>標籤</span>
-          </div>
+    // 處理標籤拖放到窗口
+    useEffect(() => {
+      if (!isDragging || !draggingTag) return
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={toggleCollapse}
-              className="w-6 h-6 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100"
-              title="展開"
+      const handleDragEnd = (e: MouseEvent) => {
+        if (isOverTagWindow && draggingTag) {
+          const alreadyExists = isCollected(draggingTag)
+          
+          if (!alreadyExists) {
+            // 添加標籤到收藏
+            addTag(draggingTag)
+            
+            // 顯示反饋訊息
+            setDropFeedback({
+              visible: true,
+              message: `已將「${draggingTag}」加入收藏`,
+              success: true
+            })
+          } else {
+            // 標籤已存在
+            setDropFeedback({
+              visible: true,
+              message: `「${draggingTag}」已在收藏中`,
+              success: false
+            })
+          }
+          
+          // 3秒後隱藏反饋
+          setTimeout(() => {
+            setDropFeedback(prev => ({ ...prev, visible: false }))
+          }, 3000)
+        }
+      }
+      
+      window.addEventListener('mouseup', handleDragEnd)
+      return () => window.removeEventListener('mouseup', handleDragEnd)
+    }, [isDragging, draggingTag, isOverTagWindow, isCollected, addTag])
+
+    // 載入真正的全局標籤
+    useEffect(() => {
+      loadGlobalTags()
+    }, [loadGlobalTags])
+
+
+    return (
+      <>
+      {/* 標籤拖放接收區域 - 只在拖曳標籤時顯示 */}
+      {isDragging && draggingTag && (
+        <div
+          className="tag-floating-window-drop-zone"
+          style={{
+            position: 'absolute',
+            inset: '0', // 與窗口大小一致
+            borderRadius: 'inherit',
+            border: '2px dashed rgba(160, 120, 80, 0.5)',
+            backgroundColor: isOverTagWindow 
+              ? (isCollected(draggingTag) ? 'rgba(255, 200, 120, 0.2)' : 'rgba(100, 255, 150, 0.2)') 
+              : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2200,
+            pointerEvents: 'none', // 不捕獲鼠標事件，允許下方內容接收鼠標事件
+            backdropFilter: isOverTagWindow ? 'blur(2px)' : 'none',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          {isOverTagWindow && (
+            <div 
+              style={{
+                backgroundColor: isCollected(draggingTag) ? '#f8d58c' : '#a0d9a0',
+                color: isCollected(draggingTag) ? '#8d6a38' : '#2e6b2e',
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontWeight: 'bold',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
+                animation: 'pulse 1.5s infinite',
+              }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 3 21 3 21 9"></polyline>
-                <polyline points="9 21 3 21 3 15"></polyline>
-                <line x1="21" y1="3" x2="14" y2="10"></line>
-                <line x1="3" y1="21" x2="10" y2="14"></line>
-              </svg>
-            </button>
-          </div>
+              {isCollected(draggingTag) ? '此標籤已在您的收藏中' : '拖放以加入您的標籤庫'}
+            </div>
+          )}
         </div>
-      ) : (
-        <>
-          {/* 標籤頭部 - 在碎片搜尋模式時隱藏編輯按鈕和猴子圖示 */}
-          <TagsHeader
-            mode={mode}
-            editMode={editMode}
-            onEditModeToggle={() => setEditMode(!editMode)}
-            onlyShowSel={onlyShowSel}
-            onFilterToggle={() => setOnlyShowSel(!onlyShowSel)}
-            isFullScreen={isFullScreen}
-            onCollapseClick={handleCollapseClick}
-            onToggleFullScreen={toggleFullScreen}
-            hideEditButton={searchMode === 'fragment'} // 碎片搜尋模式時隱藏編輯按鈕
-            hideFilterButton={searchMode === 'fragment'} // 碎片搜尋模式時隱藏猴子圖示
-          />
-
-          {/* 搜尋欄 */}
-          <div className="mb-4">
-            <div className="relative">
-              <TagsSearchBar
-                search={search}
-                setSearch={setSearch}
-                editMode={editMode}
-                searchMode={searchMode}
-                setSearchMode={handleSetSearchMode}
-                sortMode={sortMode}
-                setSortMode={setSortMode}
-                onAddTag={handleAddTag}
-                onFocus={() => !editMode && toggleSearchFocus(true)}
-                onBlur={() => {
-                  if (!editMode) {
-                    setTimeout(() => toggleSearchFocus(false), 200)
-                  }
-                }}
-                selectedMetaTags={selectedMetaTags}
-                onRemoveMetaTag={handleRemoveMetaTag}
-                isAddMode={mode === 'add'}
-                onSearchModeChange={handleSearchModeChange}
-                onSearch={() => searchMode === 'fragment' && executeFragmentSearch()}
-                allTagNames={allTags.map(tag => tag.name)}
-              />
-             
-              
-              {/* 搜尋按鈕 - 只在碎片搜尋模式顯示 */}
-              {searchMode === 'fragment' && (
-              <button
-                onClick={() => executeFragmentSearch()}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 text-gray-600 hover:text-blue-600"
-                title="執行搜尋"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </button>
-            )}
-            </div>
-
-            {/* 特殊標籤區塊 */}
-            {showSpecialTags && !editMode && searchMode === 'tag' && (
-              <MetaTagsSelector
-                metaTags={metaTags}
-                selectedMetaTags={selectedMetaTags}
-                onAddMetaTag={handleAddMetaTag}
-              />
-            )}
-
-            {/* 標籤邏輯模式切換 - 只在標籤搜尋模式顯示 */}
-            {!editMode && searchMode === 'tag' && (
-            <TagLogicToggle
-              tagLogicMode={tagLogicMode}
-              setTagLogicMode={setTagLogicMode}
-              mode={mode}
-              pendingTags={pendingTags}
-              setPendingTags={setPendingTags}
-              selectedTags={selectedTags}
-              setSelectedTags={setSelectedTags}
-              excludedTags={excludedTags}
-              setExcludedTags={setExcludedTags}
-            />
-          )}
-          </div>
-
-          {/* 編輯模式提示 */}
-          {editMode && (
-            <EditTagsPanel
-              selectedTagsToDelete={selectedTagsToDelete}
-              onDeleteTags={handleDeleteSelectedTags}
-              onCancelSelection={() => setSelectedTagsToDelete([])}
-            />
-          )}
-
-          {/* 標籤列表 */}
-          {searchMode === 'tag' && (
-            <TagsList
-              ref={tagListRef}
-              isFullScreen={isFullScreen}
-              editMode={editMode}
-              mode={mode}
-              tags={allTags}
-              itemsPerPage={itemsPerPage}
-              totalTagsCount={shown.length}
-              shown={shown}
-              selectedTagsToDelete={selectedTagsToDelete}
-              editingTag={editingTag}
-              editValue={editValue}
-              sortMode={sortMode}
-              onScroll={handleTagListScroll}
-              onTagSelect={handleTagSelect}
-              onTagExclude={handleTagExclude}
-              onTagSelectionToggle={handleTagSelectionToggle}
-              onSetEditingTag={setEditingTag}
-              onEditValueChange={setEditValue}
-              onTagRename={handleTagRename}
-              isPos={isPos}
-              isNeg={isNeg}
-            />
-          )}
-
-          {/* 碎片搜尋模式 - 放置進階搜尋面板 */}
-          {!editMode && searchMode === 'fragment' && (
-            <div>
-              <AdvancedSearchPanel 
-              onSearch={handleAdvancedSearch}
-              noResults={noResults}            
-              searchedKeyword={searchedKeyword} 
-              onResetNoResults={resetNoResults} 
-              onClearLocalSearch={() => setSearch('')}
-
-              />
-            </div>
-          )}
-        </>
       )}
-    </div>
-  ) 
-})
-TagsFloatingWindow.displayName = 'TagsFloatingWindow'
 
-export default TagsFloatingWindow
+      {/* 拖放操作反饋訊息 */}
+      {dropFeedback.visible && (
+        <div 
+          style={{
+            position: 'absolute',
+            top: '10px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: dropFeedback.success ? 'rgba(60, 179, 113, 0.9)' : 'rgba(255, 165, 0, 0.9)',
+            color: 'white',
+            padding: '8px 16px',
+            borderRadius: '20px',
+            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
+            fontSize: '14px',
+            zIndex: 2300,
+            animation: 'fadeInOut 3s ease-in-out',
+          }}
+        >
+          {dropFeedback.message}
+        </div>
+      )}
+
+
+        {/* 🪟 標籤浮動視窗本體 */}
+        <div
+          id="tags-floating-window"
+          ref={combinedRef}
+          onMouseDown={handleMouseDown}
+          className={`fixed z-[20] bg-white border border-gray-400 rounded-2xl shadow-lg select-none 
+            ${isCollapsed ? 'px-3 py-2' : 'p-4'}`}
+          style={{
+            top: isFullScreen ? 0 : pos.y,
+            left: pos.x,
+            width: isCollapsed ? '350px' : '350px',
+            height: isFullScreen ? '100vh' : (isCollapsed ? '56px' : 'auto'),
+            transition: 'width 0.3s, height 0.3s'
+          }}
+        >
+          {isCollapsed ? (
+            // 📦 收合狀態視圖
+            <div className="flex justify-between items-center w-full h-full cursor-move">
+              <div className="flex items-center gap-1 text-base font-semibold text-gray-700">
+                <span>{mode === 'add' ? '✔️' : '💬'}</span>
+                <span>標籤</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={toggleCollapse}
+                  className="w-6 h-6 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100"
+                  title="展開"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <polyline points="9 21 3 21 3 15"></polyline>
+                    <line x1="21" y1="3" x2="14" y2="10"></line>
+                    <line x1="3" y1="21" x2="10" y2="14"></line>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* 🧩 標籤面板標頭區塊 */}
+              <TagsHeader
+                mode={mode}
+                editMode={editMode}
+                onEditModeToggle={() => setEditMode(!editMode)}
+                onlyShowSel={onlyShowSel}
+                onFilterToggle={() => setOnlyShowSel(!onlyShowSel)}
+                isFullScreen={isFullScreen}
+                onCollapseClick={handleCollapseClick}
+                onToggleFullScreen={toggleFullScreen}
+                hideEditButton={searchMode === 'fragment'}
+                hideFilterButton={searchMode === 'fragment'}
+              />
+
+               <>
+                {/*  視圖切換按鈕 
+                  <div className="flex items-center gap-2 mb-2" style={{ display: isMultiUserMode ? 'flex' : 'none' }}>
+                    <button
+                      onClick={() => setTagViewMode('personal')}
+                      className={`px-2 py-1 rounded text-xs ${
+                        tagViewMode === 'personal' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      個人標籤
+                    </button>
+                    <button
+                      onClick={() => setTagViewMode('global')}
+                      className={`px-2 py-1 rounded text-xs ${
+                        tagViewMode === 'global' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      全域標籤
+                    </button>
+                  </div>
+
+                  //全域標籤視圖提示 
+                  {tagViewMode === 'global' && (
+                    <div className="bg-yellow-50 text-amber-700 px-3 py-2 text-xs rounded-md mb-4">
+                      <p>您正在查看<strong>全域標籤庫</strong>，這裡顯示所有用戶共享的標籤。</p>
+                      {useGlobalTagsStore.getState().canModifyGlobalTags() ? (
+                        <p>您可以添加新的全域標籤，但不能刪除現有標籤。</p>
+                      ) : (
+                        <p>您只能查看，無法添加或修改全域標籤。</p>
+                      )}
+                    </div>
+                  )}*/}
+              </>
+
+              {/* 🔍 搜尋與過濾區域 */}
+              <div className="mb-4">
+                <div className="relative">
+                  <TagsSearchBar
+                    search={search}
+                    setSearch={setSearch}
+                    editMode={editMode}
+                    searchMode={searchMode}
+                    setSearchMode={handleSetSearchMode}
+                    sortMode={sortMode}
+                    setSortMode={setSortMode}
+                    onAddTag={handleAddTag}
+                    onFocus={() => !editMode && toggleSearchFocus(true)}
+                    onBlur={() => !editMode && setTimeout(() => toggleSearchFocus(false), 200)}
+                    selectedMetaTags={selectedMetaTags}
+                    onRemoveMetaTag={handleRemoveMetaTag}
+                    isAddMode={mode === 'add'}
+                    onSearchModeChange={handleSearchModeChange}
+                    onSearch={() => searchMode === 'fragment' && executeFragmentSearch()}
+                    allTagNames={allTags.map(tag => tag.name)}
+                  />
+                  {/* 🔍 碎片搜尋按鈕（僅在碎片模式下顯示） */}
+                  {searchMode === 'fragment' && (
+                    <button
+                      onClick={() => executeFragmentSearch()}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1.5 text-gray-600 hover:text-blue-600"
+                      title="執行搜尋"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* ⭐ 特殊標籤選擇器 */}
+                {showSpecialTags && !editMode && searchMode === 'tag' && (
+                  <MetaTagsSelector
+                    metaTags={metaTags}
+                    selectedMetaTags={selectedMetaTags}
+                    onAddMetaTag={handleAddMetaTag}
+                  />
+                )}
+
+                {/* ⚙️ 邏輯切換：AND / OR */}
+                {!editMode && searchMode === 'tag' && (
+                  <TagLogicToggle
+                    tagLogicMode={tagLogicMode}
+                    setTagLogicMode={setTagLogicMode}
+                    mode={mode}
+                    pendingTags={pendingTags}
+                    setPendingTags={setPendingTags}
+                    selectedTags={selectedTags}
+                    setSelectedTags={setSelectedTags}
+                    excludedTags={excludedTags}
+                    setExcludedTags={setExcludedTags}
+                  />
+                )}
+              </div>
+
+              {/* ✏️ 編輯提示面板 */}
+              {editMode && (
+                <EditTagsPanel
+                  selectedTagsToDelete={selectedTagsToDelete}
+                  onDeleteTags={handleDeleteSelectedTags}
+                  onCancelSelection={() => setSelectedTagsToDelete([])}
+                />
+              )}
+
+              {/* 📋 標籤清單（標籤模式下顯示） */}
+              {searchMode === 'tag' && (
+                <TagsList
+                  ref={tagListRef}
+                  isFullScreen={isFullScreen}
+                  editMode={editMode}
+                  mode={mode}
+                  tags={allTags}
+                  itemsPerPage={itemsPerPage}
+                  totalTagsCount={shown.length}
+                  shown={shown}
+                  selectedTagsToDelete={selectedTagsToDelete}
+                  editingTag={editingTag}
+                  editValue={editValue}
+                  sortMode={sortMode}
+                  onScroll={handleTagListScroll}
+                  onTagSelect={handleTagSelect}
+                  onTagExclude={handleTagExclude}
+                  onTagSelectionToggle={handleTagSelectionToggle}
+                  onSetEditingTag={setEditingTag}
+                  onEditValueChange={setEditValue}
+                  onTagRename={handleTagRename}
+                  isPos={isPos}
+                  isNeg={isNeg}
+                />
+              )}
+
+              {/* 🔍 進階搜尋面板（碎片搜尋時） */}
+              {!editMode && searchMode === 'fragment' && (
+                <AdvancedSearchPanel
+                  onSearch={handleAdvancedSearch}
+                  noResults={noResults}
+                  searchedKeyword={searchedKeyword}
+                  onResetNoResults={resetNoResults}
+                  onClearLocalSearch={() => setSearch('')}
+                />
+              )}
+            </>
+          )}
+        </div>
+
+        {/* 🪄 拖曳時的標籤丟放區（浮在畫面最下方） */}
+        {searchMode === 'tag' && !editMode && isDragging && draggingTag && (
+          <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[9999]">
+            <TagDropZone />
+          </div>
+        )}
+      </>
+    )
+ })
+
+ export default TagsFloatingWindow
