@@ -1,42 +1,21 @@
-// components/FloatingInputBar.tsx
+// src/features/input/FloatingInputBar.tsx
 'use client'
-
-/* 📌 功能：用來輸入新的碎片（fragment）與筆記，並加上標籤。
-
-🧩 重點功能：
-輸入欄位：可輸入主內容（content）與多筆筆記（notes）。
-標籤系統整合：會連動開啟 TagsFloatingWindow 來選擇標籤。
-草稿功能：自動儲存至 localStorage，防止輸入內容遺失。
-連線動畫：在 UI 上畫出輸入欄與標籤視窗間的連接線（<svg><path>），提升互動感。
-懸浮視窗操作：支援拖曳、收合、全螢幕顯示（透過 useFloatingWindow hook 控制）。
-送出後儲存：會用 setFragments() 把新的碎片加進系統，並呼叫 save()。
-✅ 簡單說：這是使用者輸入新資料的主控台。
-
-關聯檔案:
-TagsFloatingWindow.tsx	間接控制它的顯示與位置（透過 useTagsStore().tagsWindowRef）
-useFragmentsStore.ts	儲存新 fragment，用 setFragments, save
-useTagsStore.ts	控制 pendingTags、搜尋模式、標籤選擇流程
-useFloatingWindow.ts	控制它本身的視窗位置與行為（拖曳、全螢幕、收合）
-子元件：InputBarHeader, TagsSelector, NotesList, ActionButtons	用於組合畫面與控制內容互動
-localStorage	會讀寫 murverse_draft 草稿資料
-
-*/
 
 import { useState, useEffect, useRef } from 'react'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
 import { useTagsIntegration } from '@/features/tags/store/useTagsIntegration'
-import { useTagsStore } from '@/features/tags/store/useTagsStore'
+import { useGlobalTagsStore } from '@/features/tags/store/useGlobalTagsStore'
 import { Fragment, Note } from '@/features/fragments/types/fragment'
 import { v4 as uuidv4 } from 'uuid'
 import { useFloatingWindow } from '@/features/windows/useFloatingWindow'
 import InputBarHeader from './InputBarHeader'
 import NotesList from './NotesList'
-import TagsSelector from '../tags/components/TagsSelector'
-import { useGroupsStore } from '@/features/windows/useGroupsStore'
+import TagsSelector from './TagsSelector'
 import ActionButtons from './ActionButtons'
+import { useHoverScrollbar } from '@/features/interaction/useHoverScrollbar'
 
 export default function FloatingInputBar() {
-  // 使用共用的 floating window hook
+  // 使用 Tab 模式的 floating window hook
   const {
     windowRef: inputRef,
     pos,
@@ -44,11 +23,19 @@ export default function FloatingInputBar() {
     isFullScreen,
     toggleCollapse,
     toggleFullScreen,
-    handleMouseDown
-  } = useFloatingWindow({
-    id: 'floating-input-bar',
-    defaultPosition: { x: window.innerWidth / 2 - 200, y: window.innerHeight / 4 }
-  })
+    handleMouseDown,
+    isTabMode,
+    isTabExpanded,
+    isWindowVisible
+   } = useFloatingWindow({
+  id: 'floating-input-bar',
+  defaultPosition: { 
+    x: typeof window !== 'undefined' ? (window.innerWidth - 350) / 2 : 100, 
+    y: typeof window !== 'undefined' ? (window.innerHeight - 200) / 2 : 100 
+  },
+  useTabMode: true, // 啟用 Tab 模式
+  fullScreenBehavior: 'stay-in-place' // 新增：指定要留在原地
+})
 
   // 從 store 獲取狀態和方法
   const { fragments, setFragments, save } = useFragmentsStore()
@@ -58,8 +45,8 @@ export default function FloatingInputBar() {
     openTagSelector,
     pendingTags, setPendingTags, clearPendingTags,
     setMode, tagsWindowRef, setConnected,
-    searchMode  // 獲取當前的搜尋模式
-  } = useTagsStore()
+    searchMode
+  } = useGlobalTagsStore()
 
   // 本地狀態
   const [content, setContent] = useState('')
@@ -67,18 +54,47 @@ export default function FloatingInputBar() {
   const [notes, setNotes] = useState<Note[]>([])
   const [hydrated, setHydrated] = useState(false)
   const [showLine, setShowLine] = useState(false)
-  // components/FloatingInputBar.tsx（續）
   const [linePath, setLinePath] = useState('')
   const [animateLine, setAnimateLine] = useState(false)
+  const [resetKey, setResetKey] = useState(0) // 用於重置 textarea
   const tagButtonRef = useRef<HTMLButtonElement>(null)
   const fragmentId = useRef<string>(uuidv4())
   const totalCharCount = content.length + notes.reduce((acc, note) => acc + note.title.length + note.value.length, 0)
-  const { addWindow, updateWindow, checkAndResolveOverlaps } = useGroupsStore()
-  const hasRegistered = useRef(false)
+  const { hovering: hoverScrollbarArea, bind: scrollbarHoverHandlers } = useHoverScrollbar(20)
+  const [isScaling, setIsScaling] = useState(false)
+  const [transformOrigin, setTransformOrigin] = useState('center center')
 
+  
+  const [isExiting, setIsExiting] = useState(false)
+  // Tab 模式：當窗口展開時自動設為展開狀態
+  useEffect(() => {
+    if (isTabMode && isTabExpanded) {
+      setExpanded(true)
+    } else if (isTabMode && !isTabExpanded) {
+      setExpanded(false)
+      // Tab 收合時也清理連線
+      setShowLine(false)
+      setConnected(false)
+    }
+  }, [isTabMode, isTabExpanded, setConnected])
 
-  // 移除與拖曳確認相關的狀態和引用
-  // 不再需要 clearDragActive, setClearDragActive, clearButtonRef, clearDropZoneRef 等
+  // 監聽斷開連線事件
+  useEffect(() => {
+    const handleDisconnectLine = (event: CustomEvent) => {
+      const { windowId } = event.detail
+      if (windowId === 'floating-input-bar') {
+        setShowLine(false)
+        setConnected(false)
+        setMode('search')
+      }
+    }
+    
+    globalThis.window?.addEventListener('disconnect-line', handleDisconnectLine as EventListener)
+    
+    return () => {
+      globalThis.window?.removeEventListener('disconnect-line', handleDisconnectLine as EventListener)
+    }
+  }, [setConnected, setMode])
 
   /* 在第一次渲染後初始化模式 */
   useEffect(() => { 
@@ -118,18 +134,17 @@ export default function FloatingInputBar() {
     }
   }, [expanded, setMode])
 
-  /* 點擊外部不再自動收合 */
+  /* 點擊外部處理（Tab 模式下簡化） */
   useEffect(() => {
+    if (isTabMode) return // Tab 模式下不需要點擊外部邏輯
+    
     const handleClickOutside = (e: MouseEvent) => {
       const inputEl = inputRef.current
       const tagsWindowEl = tagsWindowRef.current
 
       if (!inputEl || !tagsWindowEl) return
-
-      // 全螢幕模式下不觸發任何動作
       if (isFullScreen) return
 
-      // 只處理標籤窗口的顯示/隱藏
       if (!inputEl.contains(e.target as Node) && !tagsWindowEl.contains(e.target as Node)) {
         setShowLine(false)
         setConnected(false)
@@ -143,7 +158,7 @@ export default function FloatingInputBar() {
         document.removeEventListener('mousedown', handleClickOutside)
       }
     }
-  }, [expanded, isFullScreen, inputRef, tagsWindowRef])
+  }, [expanded, isFullScreen, inputRef, tagsWindowRef, isTabMode])
   
   /* 收合時或切換全螢幕時移除連線 */
   useEffect(() => {
@@ -154,7 +169,7 @@ export default function FloatingInputBar() {
     }
   }, [isCollapsed, isFullScreen])
 
-  /* 監聽 searchMode 的變化，當切換到碎片搜尋模式時斷開連線 */
+  /* 監聽 searchMode 的變化 */
   useEffect(() => {
     if (searchMode === 'fragment' && showLine) {
       console.log('InputBar 監聽到搜尋模式變為 fragment，斷開連線');
@@ -164,35 +179,20 @@ export default function FloatingInputBar() {
   }, [searchMode, showLine, setConnected]);
 
   useEffect(() => {
-    const el = inputRef.current
-    if (!el || hasRegistered.current) return
-  
-    requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect()
-      addWindow({
-        id: 'floating-input-bar',
-        x: rect.left,
-        y: rect.top,
-        width: rect.width || 350,
-        height: rect.height || 56
-      })
-      hasRegistered.current = true
-    })
-  }, [addWindow])
-  
-  // 尺寸或收合狀態改變時更新群組狀態
-  useEffect(() => {
-    const el = inputRef.current
-    if (!el) return
-    setTimeout(() => {
-      const rect = el.getBoundingClientRect()
-      updateWindow('floating-input-bar', {
-        width: rect.width,
-        height: rect.height
-      })
-      checkAndResolveOverlaps()
-    }, 100)
-  }, [isCollapsed, isFullScreen, updateWindow, checkAndResolveOverlaps])
+  const el = inputRef.current
+  if (!el) return
+
+  const handleAnimationEnd = () => {
+    if (!isTabExpanded) {
+      el.style.display = 'none'
+    }
+  }
+
+  el.addEventListener('animationend', handleAnimationEnd)
+  return () => el.removeEventListener('animationend', handleAnimationEnd)
+}, [isTabExpanded])
+
+
 
   /* 畫連線的邏輯和動畫 */
   useEffect(() => {
@@ -210,7 +210,6 @@ export default function FloatingInputBar() {
           const endX = w.left + w.width / 2
           const endY = w.top + w.height / 2
 
-          // 初始畫出曲線
           setLinePath(
             `M${startX} ${startY}
              C${cx} ${cy} ${cx} ${cy}
@@ -219,10 +218,9 @@ export default function FloatingInputBar() {
         }
       }
 
-      update() // 立刻更新一次
-      const interval = setInterval(update, 16) // 每16毫秒更新一次
-
-      return () => clearInterval(interval) // 離開時清掉
+      update()
+      const interval = setInterval(update, 16)
+      return () => clearInterval(interval)
     }
   }, [showLine, tagsWindowRef])
 
@@ -231,7 +229,6 @@ export default function FloatingInputBar() {
     if (!content.trim()) return
     const now = new Date().toISOString()
     
-    // 過濾掉空白的筆記
     const filteredNotes = notes.filter(note => 
       note.title.trim() !== '' || note.value.trim() !== ''
     )
@@ -252,13 +249,11 @@ export default function FloatingInputBar() {
     save()
     resetInput()
     
-    // 提交後產生新的 fragmentId，確保每次創建都是唯一 ID
     fragmentId.current = uuidv4()
   }
 
   /* 清空全部 */
   const handleClear = () => {
-    // 直接调用重置输入而不使用拖曳确认
     resetInput()
   }
 
@@ -284,72 +279,152 @@ export default function FloatingInputBar() {
     setNotes(newNotes)
   }
 
-  /* 重置輸入欄 */
+  /* 重置輸入欄 - 簡化版，確保 textarea 高度重置 */
   const resetInput = () => {
     setContent('')
     clearPendingTags()
-    setNotes([{ id: uuidv4(), title: '', value: '' }]) // 重置為一個空白筆記而不是完全清空
-    // 不要設置expanded為false
+    setNotes([{ id: uuidv4(), title: '', value: '' }])
     setShowLine(false)
     setConnected(false)
+    setResetKey(prev => prev + 1) // 觸發 textarea 重新創建，自動重置高度
     localStorage.removeItem('murverse_draft')
   }
 
   /* 畫連線 */
   const handleOpenTagsWindow = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    console.log('使用增強版開啟標籤選擇器');
-    
-    // 首先檢查當前的搜尋模式，如果是 fragment 模式，需要先切換回 tag 模式
-    if (searchMode === 'fragment') {
-      console.log('當前為碎片搜尋模式，需要先切換回標籤模式');
-    }
-    
-    // 呼叫增強版開啟標籤選擇器（這會自動設置模式為 add 和搜尋模式為 tag）
-    enhancedOpenTagSelector();
-    
-    // 再次強制設置模式，確保標籤窗口的內容顯示正確
-    setTimeout(() => {
-      setMode('add');  // 直接使用 store 中的 setMode 函數
-      
-      // 增加延遲確保模式切換完成後再畫線
-      setTimeout(() => {
-        requestAnimationFrame(() => {
-          const tagButton = tagButtonRef.current
-          const tagsWindow = tagsWindowRef.current
-          if (tagButton && tagsWindow) {
-            const b = tagButton.getBoundingClientRect()
-            const w = tagsWindow.getBoundingClientRect()
-            const cx = (b.left + w.left) / 2
-            const cy = (b.top + w.top) / 2
-            setLinePath(
-              `M${b.left + b.width / 2} ${b.top + b.height / 2}
-               C${cx} ${cy} ${cx} ${cy}
-               ${w.left + w.width / 2} ${w.top + w.height / 2}`
-              )
-            setTimeout(() => {
-              window.dispatchEvent(new Event('resize'))
-            }, 100)
-               
-            setShowLine(true)
-            setConnected(true)
-            setAnimateLine(true)
-            setTimeout(() => setAnimateLine(false), 500)
-          }
-        })
-      }, 100);  // 增加延遲確保模式切換完成
-    }, 50); // 先確保模式設置正確
+  e.stopPropagation();
+  
+  // 檢查當前標籤窗和連線狀態
+  const tagsWindow = tagsWindowRef.current;
+  const isTagsWindowOpen = tagsWindow && tagsWindow.style.transform === 'translateX(0px)';
+  
+  console.log('添加標籤按鈕被點擊');
+  console.log('標籤窗狀態:', isTagsWindowOpen ? '展開' : '收合');
+  console.log('連線狀態:', showLine);
+  
+  // 如果已經連線，則取消連線和添加標籤狀態
+  if (showLine) {
+    console.log('取消連線和添加標籤狀態');
+    setShowLine(false);
+    setConnected(false);
+    setMode('search');
+    return;
   }
+  
+  // 如果標籤窗收合，先展開標籤窗
+  if (!isTagsWindowOpen) {
+    console.log('標籤窗收合中，先展開標籤窗');
+    // 觸發標籤窗展開 - 需要調用標籤窗的展開函數
+    const drawerEvent = new CustomEvent('open-tags-drawer');
+    window.dispatchEvent(drawerEvent);
+  }
+  
+  // 使用增強版開啟標籤選擇器
+  enhancedOpenTagSelector();
+  
+  setTimeout(() => {
+    setMode('add');
+    
+    setTimeout(() => {
+      requestAnimationFrame(() => {
+        const tagButton = tagButtonRef.current;
+        const tagsWindow = tagsWindowRef.current;
+        if (tagButton && tagsWindow) {
+          const b = tagButton.getBoundingClientRect();
+          const w = tagsWindow.getBoundingClientRect();
+          const cx = (b.left + w.left) / 2;
+          const cy = (b.top + w.top) / 2;
+          setLinePath(
+            `M${b.left + b.width / 2} ${b.top + b.height / 2}
+             C${cx} ${cy} ${cx} ${cy}
+             ${w.left + w.width / 2} ${w.top + w.height / 2}`
+          );
+          setTimeout(() => {
+            window.dispatchEvent(new Event('resize'));
+          }, 100);
+             
+          setShowLine(true);
+          setConnected(true);
+          setAnimateLine(true);
+          setTimeout(() => setAnimateLine(false), 500);
+        }
+      });
+    }, 100);
+  }, 50);
+};
+
+useEffect(() => {
+  const handleTagsDrawerClose = () => {
+    if (showLine) {
+      console.log('標籤窗收合，取消連線');
+      setShowLine(false);
+      setConnected(false);
+      setMode('search');
+    }
+  };
+
+
+    
+  window.addEventListener('tags-drawer-closed', handleTagsDrawerClose);
+  
+  return () => {
+    window.removeEventListener('tags-drawer-closed', handleTagsDrawerClose);
+  };
+}, [showLine, setConnected, setMode]);
+
+const handleToggleFullScreen = () => {
+  console.log('开始全屏缩放动画')
+  const el = inputRef.current
+  if (!el) return
+  
+  const rect = el.getBoundingClientRect()
+  const centerX = rect.left + rect.width / 2
+  const centerY = rect.top + rect.height / 2
+  
+  console.log('缩放中心点:', { centerX, centerY })
+  console.log('当前状态:', { isFullScreen })
+  
+  // 設置變換原點為視窗中心相對於視窗自身的位置
+  const originX = rect.width / 2  // 視窗寬度的一半
+  const originY = rect.height / 2 // 視窗高度的一半
+  setTransformOrigin(`${originX}px ${originY}px`)
+  
+  // 設置縮放動畫
+  setIsScaling(true)
+  
+  // 執行原始的全螢幕切換
+  toggleFullScreen()
+  
+  // 動畫結束後重置狀態
+  setTimeout(() => {
+    setIsScaling(false)
+    setTransformOrigin('center center') // 重置為默認值
+  }, 300)
+}
+  
+
+
 
   /* 折疊視窗 */
-  const handleCollapseWindow = () => {
-    if (isFullScreen) {
-      toggleFullScreen()
-    }
-    setExpanded(false)
-    setShowLine(false)
-    setConnected(false)
-  }
+ const handleCollapseWindow = () => {
+  if (isScaling) return // 防止重複觸發
+  
+  setIsScaling(true)
+  
+  // 切換展開狀態
+  if (isFullScreen) toggleFullScreen()
+  if (isTabMode) toggleCollapse()
+  else setExpanded(!expanded)
+
+  // 斷開連線
+  setShowLine(false)
+  setConnected(false)
+  
+  // 動畫結束後重置狀態
+  setTimeout(() => {
+    setIsScaling(false)
+  }, 300)
+}
 
   /* 移除標籤 */
   const removeTag = (tagToRemove: string) => {
@@ -359,118 +434,323 @@ export default function FloatingInputBar() {
   /* 渲染 */
   if (!hydrated) return null
   
-  return (
-    <>
-      {/* 標籤連線線條 */}
-      {showLine && (
-        <svg
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            pointerEvents: 'none',
-            zIndex: 1,
-          }}
-        >
-          <path
-            d={linePath}
-            stroke="black"
-            strokeWidth={2}
-            fill="none"
-            className={animateLine ? 'animate-draw' : ''}
-          />
-        </svg>
-      )}
-      
-      {/* 移除拖曳確認區域 - 清除功能 */}
-      
-      {/* 主窗體 */}
-      <div
-        id="floating-input-bar"
-        ref={inputRef}
-        onMouseDown={handleMouseDown}
-        onDragStart={e => e.preventDefault()}
-        className={`fixed z-[20] bg-white border border-gray-400 rounded-2xl shadow-lg select-none 
-          ${expanded && !isCollapsed ? 'p-4' : 'p-2'}
-          ${isFullScreen ? 'transition-all duration-300 ease-in-out' : ''}`}
+      // Tab 模式下：如果窗口不可見，只渲染 tab
+      if (isTabMode && !isWindowVisible && !isExiting) {
+        
+      return (
+        <>
+          {/* 碎片 Tab 書籤 - 收合狀態 */}
+            <div
+              className="fixed cursor-pointer transition-all duration-200 ease-out select-none group"
+              style={{
+                top: '30vh',
+                left: '0',
+                zIndex: 25
+              }}
+              onClick={() => toggleCollapse()}
+            >
+             <div 
+              className="relative transition-all duration-200 ease-out group-hover:shadow-md"
+              style={{
+                width: '2vw',
+                height: '8vh',
+                background: '#fefdfb',
+                borderTop: '2px solid #c9c9c9',
+                borderRight: '2px solid #c9c9c9', 
+                borderBottom: '2px solid #c9c9c9',
+                borderLeft: 'none', // 左邊不要框
+                borderRadius: '0 1vh 1vh 0',
+                // 右側陰影，左側不要
+                boxShadow: '0 2px 6px rgba(0,0,0,0.05), 2px 0 4px rgba(0, 0, 0, 0.1)',
+              }}
+            >
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center transition-colors duration-200"
+                  style={{ color: '#999999' }}
+                >
+                  <div
+                    style={{ width: '1.4vh', height: '1.4vh', marginBottom: '0.2vh' }}
+                    className="group-hover:text-red-500 transition-colors duration-200" // 加上懸浮變色效果
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </div>
+                  <span
+                    style={{ fontSize: '0.9vh' }}
+                    className="group-hover:text-red-500 transition-colors duration-200" // 加上懸浮變色效果
+                  >
+                    碎片
+                  </span>
+                </div>
+              </div>
+            </div>
+   </>
+ )
+}
+
+return (
+ <>
+   {/* 標籤連線線條 */}
+   {showLine && (
+     <svg
+       style={{
+         position: 'fixed',
+         top: 0,
+         left: 0,
+         width: '100vw',
+         height: '100vh',
+         pointerEvents: 'none',
+         zIndex: 1,
+       }}
+     >
+       <path
+         d={linePath}
+         stroke="#1e2a38"
+         strokeWidth={2}
+         fill="none"
+         className={animateLine ? 'animate-draw' : ''}
+       />
+     </svg>
+   )}
+   
+   {/* 主窗體 */}
+   <div
+  id="floating-input-bar"
+  ref={inputRef}
+  onMouseDown={handleMouseDown}
+  onDragStart={e => e.preventDefault()}
+  className={`fixed z-[25] border rounded-sm shadow-lg select-none
+    ${expanded && !isCollapsed ? 'p-4' : 'p-2'}
+    ${isFullScreen ? 'transition-all duration-300 ease-in-out' : ''}
+    ${isTabMode && isTabExpanded ? 'window-enter' : ''}
+    ${isTabMode && !isTabExpanded ? 'window-exit' : ''}
+    ${isScaling ? 'scale-animation' : ''}`} // 新增縮放動畫類
+  style={{
+    top: pos.y,
+    left: pos.x,
+    width: isFullScreen ? '50vw' : '22rem',
+    height: isFullScreen ? '85vh' : '30rem',
+    display: isTabMode && !isWindowVisible ? 'none' : 'block',
+    backgroundColor: '#fefdfb',
+    backgroundImage: (isTabExpanded || expanded) ? `
+      repeating-linear-gradient(
+        transparent 0px,
+        transparent 27px,
+        rgba(120, 140, 170, 0) 28px,
+        rgba(255, 255, 255, 0) 29px
+      )
+    ` : 'none',
+    backgroundPosition: '20px 50px',
+    backgroundSize: 'calc(100% - 40px) auto',
+    border: '1px solid rgba(0, 0, 0, 0.08)',
+    boxShadow: (isTabExpanded || expanded) 
+      ? '0 8px 32px rgba(30, 42, 56, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)'
+      : '0 4px 16px rgba(30, 42, 56, 0.1), 0 1px 4px rgba(0, 0, 0, 0.06)',
+    // 簡化的變換屬性
+    transformOrigin: transformOrigin,
+    transition: isScaling 
+      ? 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1), width 0.3s, height 0.3s'
+      : 'width 0.3s, height 0.3s'
+  }}
+>
+
+     {/* Tab 書籤 - 在窗口內部，用 absolute 定位到右側 */}
+     <div
+       className="absolute cursor-pointer select-none group"
+       style={{
+         top: '50%',
+         right: '-2vw',
+         transform: 'translateY(-50%)',
+         zIndex: 5
+       }}
+       onClick={(e) => {
+         e.stopPropagation();
+         if (isTabMode) {
+           toggleCollapse()
+         } else {
+           setExpanded(!expanded)
+         }
+       }}
+     >
+       <div 
+        className="relative transition-all duration-200 ease-out"
         style={{
-          top: pos.y,
-          left: pos.x,
-          width: isFullScreen ? '50vw' : (expanded && !isCollapsed ? '350px' : '350px'),
-          height: isFullScreen ? '85vh' : (expanded && !isCollapsed ? 'auto' : '56px'),
-          transition: 'width 0.3s, height 0.3s'
+          width: '2vw',
+          height: '8vh',
+          background: '#fefdfb',
+          borderLeft: 'none',
+          borderRadius: '0 1vh 1vh 0',
+          // 只有右側陰影
+          boxShadow: '2px 0 4px rgba(0, 0, 0, 0.1)',
         }}
       >
-        {!expanded || isCollapsed ? (
-          // 收合狀態
-          <div className="flex items-center justify-between">
-            <input
-              className="flex-1 bg-transparent px-4 py-2 text-center mr-2"
-              placeholder="輸入新碎片..."
-              readOnly
-              value={content}
-              onFocus={() => {
-                setExpanded(true)
-                if (isCollapsed) {
-                  toggleCollapse()
-                }
-              }}
-            />
-          </div>
-        ) : (
-          // 展開狀態
-          <div className="space-y-4">
-            {/* 頂部控制區 */}
-            <InputBarHeader 
-              isFullScreen={isFullScreen}
-              onCollapse={handleCollapseWindow}
-              onToggleFullScreen={toggleFullScreen}
-            />
+         <div className="absolute inset-0 flex flex-col items-center justify-center transition-colors duration-200" 
+              style={{ color: (isTabExpanded || expanded) ? '#1e2a38' : '#999999' }}>
+           <div 
+             style={{
+               width: '1.4vh',
+               height: '1.4vh',
+               marginBottom: '0.2vh'
+             }}
 
-            {/* 主要輸入區 */}
-            <div className="flex items-center gap-2">
-              <input
-                className="flex-1 p-2 border border-gray-300 rounded-lg"
-                placeholder="碎片內容..."
-                value={content}
-                onChange={e => setContent(e.target.value)}
-              />
-            </div>
+            className="group-hover:text-red-500 transition-colors duration-200">
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
+               <line x1="12" y1="5" x2="12" y2="19"></line>
+               <line x1="5" y1="12" x2="19" y2="12"></line>
+             </svg>
+           </div>
+           <span 
+            style={{ fontSize: '0.9vh' }}
+            className="group-hover:text-red-500 transition-colors duration-200">
+             碎片
+           </span>
+         </div>
+         
+         {/* 激活指示器 */}
+         {(isTabExpanded || expanded) && (
+           <div 
+             className="absolute top-1 rounded-l-full"
+             style={{
+               right: '-0.1vw',
+               width: '0.2vw',
+               height: '2vh',
 
-            {/* 標籤區 */}
-            <TagsSelector 
-              tags={pendingTags}
-              tagButtonRef={tagButtonRef}
-              onOpenTagsWindow={handleOpenTagsWindow}
-              onRemoveTag={removeTag}
-            />
+             }}
+           />
+         )}
+       </div>
+     </div>
 
-            {/* 筆記列表 */}
-            <NotesList 
-              notes={notes}
-              isFullScreen={isFullScreen}
-              onUpdateNote={updateNote}
-              onDeleteNote={deleteNote}
-              onReorderNotes={handleReorderNotes}
-              onAddNote={addNote}
-            />
+     {/* 窗口內容 */}
+     {!expanded || isCollapsed ? (
+       // 收合狀態 - 固定高度，支援捲軸
+       <div className="flex items-center justify-between h-full">
+         <textarea
+          className="flex-1 transition-all duration-200 outline-none text-navy placeholder-grayish font-medium resize-none"
+          placeholder="碎片內容..."
+          value={content}
+          onChange={e => setContent(e.target.value)}
+          // 移除 onInput 動態調整高度
+          style={{
+            backgroundColor: 'transparent',
+            border: 'none',
+            padding: '0.75rem',
+            fontSize: '1rem',
+            lineHeight: '1.75em',
+            width: '100%',
+            height: '2.5rem', // 固定高度
+            maxHeight: '2.5rem',
+            overflowY: 'auto', // 支援捲軸
+            backgroundImage: `
+              repeating-linear-gradient(
+                to bottom,
+                transparent 0em,
+                transparent 1.74em,
+                rgba(120, 140, 170, 0.2) 1.74em,
+                transparent 1.75em
+              )
+            `,
+            backgroundSize: '100% 1.75em',
+            backgroundPosition: '0 0',
+          }}
+          onFocus={e => {
+            e.target.style.borderBottomColor = 'rgba(30, 42, 56, 0.5)'
+          }}
+          onBlur={e => {
+            e.target.style.borderBottomColor = 'rgba(120, 140, 170, 0.3)'
+          }}
+        />
+       </div>
+     ) : (
+       // 展開狀態 - 重新架構佈局，固定上下控制區域
+       <div className="flex flex-col h-full">
+         {/* 頂部控制區 - 固定位置 */}
+         <div className="flex-shrink-0">
+           <InputBarHeader 
+            isFullScreen={isFullScreen}
+            onCollapse={handleCollapseWindow}
+            onToggleFullScreen={handleToggleFullScreen}
+            isTabMode={isTabMode}
+          />
+         </div>
 
-            {/* 操作按鈕 - 移除拖曳确认相关的props */}
-            <ActionButtons 
-              isFullScreen={isFullScreen}
-              totalCharCount={totalCharCount}
-              clearDragActive={false} // 移除实际功能，保留参数以兼容
-              clearButtonRef={null}   // 移除实际功能，保留参数以兼容
-              onSubmit={handleSubmit}
-              onClear={handleClear}
-              onClearDragStart={() => {}} // 空函数以保持接口兼容
-              onClearDragEnd={() => {}}   // 空函数以保持接口兼容
-            />
-          </div>
-        )}
-      </div>
-    </>
-  )
-}
+         {/* 可捲動的內容區域 */}
+         <div
+          className={`flex-1 overflow-y-auto ${hoverScrollbarArea ? 'scrollbar-hover' : 'scrollbar-invisible'}`}
+          {...scrollbarHoverHandlers}
+          style={{
+            maxHeight: 'calc(85vh - 8rem)',
+            paddingRight: '0.25rem',
+          }}
+        >
+          
+          <div className="space-y-4 pr-1">
+           {/* 主要輸入區 */}
+           <div className="flex items-center gap-2" style={{ paddingLeft: '1.25rem', paddingRight: '1.25rem' }}>
+            <textarea
+            key={resetKey} // 清除時重新創建，確保高度重置
+            className="flex-1 p-3 transition-all duration-200 outline-none text-navy placeholder-grayish font-medium resize-none"
+            placeholder="碎片內容..."
+            value={content}
+            onChange={e => setContent(e.target.value)}
+            onInput={e => {
+              const target = e.currentTarget
+              target.style.height = 'auto'
+              target.style.height = `${target.scrollHeight}px`
+            }}
+            rows={1}
+            style={{
+              backgroundColor: 'transparent',
+              border: 'none',
+              padding: '0',
+              marginLeft: '1em',
+              marginRight: '1em',
+              fontSize: '1rem',
+              lineHeight: '1.75em',
+              width: '100%',
+              height: 'auto',
+              overflow: 'hidden',
+            }}
+          />
+           </div>
+
+           {/* 標籤區 */}
+           <TagsSelector 
+             tags={pendingTags}
+             tagButtonRef={tagButtonRef}
+             onOpenTagsWindow={handleOpenTagsWindow}
+             onRemoveTag={removeTag}
+           />
+
+           {/* 筆記列表 */}
+           <NotesList 
+             notes={notes}
+             isFullScreen={isFullScreen}
+             onUpdateNote={updateNote}
+             onDeleteNote={deleteNote}
+             onReorderNotes={handleReorderNotes}
+             onAddNote={addNote}
+           />
+           </div>
+         </div>
+
+         {/* 底部操作按鈕 - 固定位置 */}
+         <div className="flex-shrink-0 border-t border-gray-100 pt-4 mt-4">
+           <ActionButtons 
+             isFullScreen={isFullScreen}
+             totalCharCount={totalCharCount}
+             clearDragActive={false}
+             clearButtonRef={null}
+             onSubmit={handleSubmit}
+             onClear={handleClear}
+             onClearDragStart={() => {}}
+             onClearDragEnd={() => {}}
+           />
+         </div>
+       </div>
+     )}
+   </div>
+ </>
+)}

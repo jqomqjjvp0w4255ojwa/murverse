@@ -16,7 +16,6 @@
  * - 嵌入於 FloatingInputBar 的底部操作列中。
  */
 
-
 'use client'
 
 import React, { RefObject, useState } from 'react';
@@ -50,8 +49,9 @@ export default function ActionButtons({
 
         <div className="flex gap-4 justify-center">
           <button
-            className="px-4 py-1 bg-green-600 text-white rounded text-sm"
+            className="px-4 py-2 bg-kraft rounded-lg text-sm font-medium border border-kraft/20 transition-all duration-200 hover:bg-kraft/80 hover:-translate-y-0.5"
             onClick={onSubmit}
+            style={{ color: '#4a5568' }}
           >
             儲存
           </button>
@@ -69,8 +69,9 @@ export default function ActionButtons({
             />
           ) : (
             <button
-              className="px-4 py-1 bg-gray-400 text-white rounded text-sm"
+              className="px-4 py-2 bg-kraft rounded-lg text-sm font-medium border border-kraft/20 transition-all duration-200 hover:bg-kraft/80 hover:-translate-y-0.5"
               onClick={() => setConfirmingClear(true)}
+              style={{ color: '#4a5568' }}
             >
               清除
             </button>
@@ -78,7 +79,7 @@ export default function ActionButtons({
         </div>
 
         {isFullScreen && (
-          <div className="flex-1 text-right text-xs text-gray-500 pr-1">
+          <div className="flex-1 text-right text-xs text-grayish pr-1">
             {`總字數：${totalCharCount}`}
           </div>
         )}

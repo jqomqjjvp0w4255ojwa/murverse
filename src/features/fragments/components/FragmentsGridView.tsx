@@ -25,6 +25,8 @@ import {
   GRID_SIZE,
   CONTAINER_WIDTH
 } from '@/features/fragments/constants'
+import { saveFragmentPositionToSupabase } from '@/features/fragments/services/FragmentPositionService'
+
 
 
 type PositionsMap = Record<string, { row: number, col: number }>;
@@ -151,6 +153,11 @@ export default function FragmentsGridView({
         } catch (error) {
           console.error('保存位置出錯:', error)
         }
+
+        // 雲端同步每個更新的位置
+        Object.entries(updatedPositions).forEach(([fragmentId, pos]) => {
+          saveFragmentPositionToSupabase(fragmentId, pos)
+        })
 
         forceUpdate({}) // 強制重新渲染
 
@@ -299,7 +306,7 @@ export default function FragmentsGridView({
       <div style={{
         position: 'sticky',
         top: 0,
-        zIndex: 10,
+        zIndex: 0,
         backgroundColor: '#f9f6e9',
         padding: '8px 0',
         marginBottom: '12px',

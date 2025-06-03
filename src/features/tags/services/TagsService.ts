@@ -1,6 +1,35 @@
 'use client'
 
 import { Fragment } from '@/features/fragments/types/fragment'
+import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
+import { supabase } from '@/lib/supabaseClient'
+
+async function loadTagsFromSupabase(userId: string, type: 'global' | 'recent'): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('user_tags')
+    .select('tags')
+    .eq('user_id', userId)
+    .eq('type', type)
+    .single()
+
+  if (error) {
+    console.error(`讀取 ${type} tags 失敗`, error)
+    return []
+  }
+
+  return data?.tags || []
+}
+
+// 儲存標籤資料（全域或最近）
+async function saveTagsToSupabase(userId: string, type: 'global' | 'recent', tags: string[]) {
+  const { error } = await supabase
+    .from('user_tags')
+    .upsert([{ user_id: userId, type, tags }])
+
+  if (error) {
+    console.error(`儲存 ${type} tags 失敗`, error)
+  }
+}
 
 /**
  * 相似標籤類型定義
@@ -40,51 +69,47 @@ export class TagsService {
   }
   
   /**
-   * 從 localStorage 加載全域標籤
+   * 從 Supabase 加載全域標籤
    */
-  static loadGlobalTags(): string[] {
-    try {
-      return JSON.parse(localStorage.getItem('mur_tags_global') || '[]')
-    } catch (e) {
-      console.error('Error loading global tags', e)
+  static async loadGlobalTags(): Promise<string[]> {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      console.error('無法取得使用者資料')
       return []
     }
+    return await loadTagsFromSupabase(user.id, 'global')
   }
-  
-  /**
-   * 將全域標籤保存到 localStorage
-   */
-  static saveGlobalTags(tags: string[]): void {
-    try {
-      localStorage.setItem('mur_tags_global', JSON.stringify(tags))
-    } catch (e) {
-      console.error('Error saving global tags', e)
+
+  static async saveGlobalTags(tags: string[]): Promise<void> {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      console.error('無法取得使用者資料')
+      return
     }
+    await saveTagsToSupabase(user.id, 'global', tags)
   }
-  
+
   /**
-   * 從 localStorage 加載最近使用的標籤
+   * 從 Supabase 加載最近使用的標籤
    */
-  static loadRecentTags(): string[] {
-    try {
-      return JSON.parse(localStorage.getItem('mur_recent_tags') || '[]')
-    } catch (e) {
-      console.error('Error loading recent tags', e)
+  static async loadRecentTags(): Promise<string[]> {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      console.error('無法取得使用者資料')
       return []
     }
+    return await loadTagsFromSupabase(user.id, 'recent')
   }
-  
-  /**
-   * 將最近使用的標籤保存到 localStorage
-   */
-  static saveRecentTags(tags: string[]): void {
-    try {
-      localStorage.setItem('mur_recent_tags', JSON.stringify(tags))
-    } catch (e) {
-      console.error('Error saving recent tags', e)
+
+  static async saveRecentTags(tags: string[]): Promise<void> {
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      console.error('無法取得使用者資料')
+      return
     }
+    await saveTagsToSupabase(user.id, 'recent', tags)
   }
-  
+
   /**
    * 計算標籤使用率和熱門度
    */
@@ -394,7 +419,7 @@ export class TagsService {
   /**
    * 重命名標籤（在所有碎片中）
    */
-  static renameTag(oldName: string, newName: string): TagOperationResult {
+  static async renameTag(oldName: string, newName: string): Promise<TagOperationResult> {
     const { fragments, setFragments, save } = useFragmentsStore.getState()
     
     // 檢查新名稱是否已存在
@@ -423,15 +448,13 @@ export class TagsService {
       setFragments(updatedFragments)
       save()
       
-      // 更新本地儲存的全局標籤列表
+      // 更新 Supabase 的全域標籤列表
       try {
-        const storedTags = JSON.parse(localStorage.getItem('mur_tags_global') || '[]')
-        if (storedTags.includes(oldName)) {
-          const updatedStoredTags = storedTags.map((t: string) => t === oldName ? newName : t)
-          localStorage.setItem('mur_tags_global', JSON.stringify(updatedStoredTags))
-        }
+        const tags = await TagsService.loadGlobalTags()
+        const updated = tags.map(t => t === oldName ? newName : t)
+        await TagsService.saveGlobalTags(updated)
       } catch (e) {
-        console.error('更新本地儲存標籤失敗', e)
+        console.error('更新 Supabase 全域標籤失敗', e)
       }
     }
     
@@ -445,7 +468,7 @@ export class TagsService {
   /**
    * 刪除標籤（從所有碎片中移除）
    */
-  static deleteTag(tag: string): TagOperationResult {
+  static async deleteTag(tag: string): Promise<TagOperationResult> {
     const { fragments, setFragments, save } = useFragmentsStore.getState()
     
     let affectedCount = 0
@@ -465,15 +488,13 @@ export class TagsService {
       setFragments(updatedFragments)
       save()
       
-      // 從本地儲存的全局標籤列表中移除
+      // 從 Supabase 移除標籤
       try {
-        const storedTags = JSON.parse(localStorage.getItem('mur_tags_global') || '[]')
-        if (storedTags.includes(tag)) {
-          const updatedStoredTags = storedTags.filter((t: string) => t !== tag)
-          localStorage.setItem('mur_tags_global', JSON.stringify(updatedStoredTags))
-        }
+        const tags = await TagsService.loadGlobalTags()
+        const updated = tags.filter(t => t !== tag)
+        await TagsService.saveGlobalTags(updated)
       } catch (e) {
-        console.error('從本地儲存移除標籤失敗', e)
+        console.error('從 Supabase 移除標籤失敗', e)
       }
     }
     
@@ -484,5 +505,3 @@ export class TagsService {
     }
   }
 }
-
-import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'

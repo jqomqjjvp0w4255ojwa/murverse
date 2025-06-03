@@ -1,12 +1,9 @@
-// hooks/useFloatingWindow.ts
+// src/features/windows/useFloatingWindow.ts
 
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
 import { useGroupDragAndSnap } from './useGroupDragAndSnap'
-import { useCollapsible } from './useCollapsible'
-import { useGroupsStore } from '@/features/windows/useGroupsStore'
-import { useWindowsOverlap } from './useWindowsOverlap'
 
 interface FloatingWindowOptions {
   id: string
@@ -14,6 +11,8 @@ interface FloatingWindowOptions {
   defaultWidth?: number
   defaultHeight?: number
   onWindowRegistered?: () => void
+  useTabMode?: boolean // 新增：是否使用 tab 模式
+  fullScreenBehavior?: 'jump-to-position' | 'stay-in-place' // 新增：全螢幕行為配置
 }
 
 export function useFloatingWindow({
@@ -21,72 +20,97 @@ export function useFloatingWindow({
   defaultPosition = { x: 100, y: 100 },
   defaultWidth = 320,
   defaultHeight = 200,
-  onWindowRegistered
+  onWindowRegistered,
+  useTabMode = false, // 默認為 false，保持原有行為
+  fullScreenBehavior = 'jump-to-position' // 默認保持原有行為
 }: FloatingWindowOptions) {
+  
   const windowRef = useRef<HTMLDivElement>(null)
+  
+  // Tab 模式相關狀態
+  const [isTabMode] = useState(useTabMode)
+  const [isTabExpanded, setIsTabExpanded] = useState(false)
+  const [tabPosition, setTabPosition] = useState<{x: number, y: number} | null>(null)
+  
+  // 原有的狀態和邏輯
   const { pos, startDrag, isDragging, setPos } = useGroupDragAndSnap(id, windowRef as React.RefObject<HTMLDivElement>)
-  const { isCollapsed, toggleCollapse } = useCollapsible(id, false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [isFullScreen, setIsFullScreen] = useState(false)
-  const hasRegistered = useRef(false)
-  const { addWindow, updateWindow, checkAndResolveOverlaps } = useGroupsStore()
   
-  // 註冊窗口
+  // Tab 模式：監聽 tab 切換事件
   useEffect(() => {
-    const el = windowRef.current
-    if (!el || hasRegistered.current) return
+    if (!isTabMode) return
     
-    requestAnimationFrame(() => {
-      const rect = el.getBoundingClientRect()
-      addWindow({
-        id,
-        x: rect.left || defaultPosition.x,
-        y: rect.top || defaultPosition.y,
-        width: rect.width || defaultWidth,
-        height: rect.height || defaultHeight
-      })
-      hasRegistered.current = true
-      onWindowRegistered?.()
-    })
-  }, [id, defaultPosition, defaultWidth, defaultHeight, addWindow, onWindowRegistered])
+    const handleTabToggle = (event: CustomEvent) => {
+      const { windowId, isActive, tabPosition: tabPos } = event.detail
+      
+      if (windowId === id) {
+        setIsTabExpanded(isActive)
+        setTabPosition(tabPos)
+        
+        if (isActive && tabPos) {
+          // 計算窗口位置：tab 右側 + 一些間距
+          const newX = 80 // tab 區域寬度
+          const newY = Math.max(50, tabPos.y - 50) // 稍微向上偏移
+          setPos({ x: newX, y: newY })
+        }
+      }
+    }
+    
+    window.addEventListener('tab-toggle', handleTabToggle as EventListener)
+    
+    return () => {
+      window.removeEventListener('tab-toggle', handleTabToggle as EventListener)
+    }
+  }, [id, isTabMode, setPos])
   
-  // 使用重疊檢測
-  useWindowsOverlap(id, windowRef as React.RefObject<HTMLElement>)
+  // 原有的收合功能（非 tab 模式時使用）
+  const toggleCollapse = () => {
+    if (isTabMode) return // Tab 模式下不使用原有收合邏輯
+    
+    const newIsCollapsed = !isCollapsed
+    setIsCollapsed(newIsCollapsed)
+    
+    // 保存/恢復收合狀態到 localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`window-${id}-collapsed`, JSON.stringify(newIsCollapsed))
+    }
+  }
   
-  // 切換全螢幕模式
+  // 全螢幕切換
   const toggleFullScreen = () => {
     const newIsFullScreen = !isFullScreen
     setIsFullScreen(newIsFullScreen)
     
-    // 全螢幕時保存位置
     if (newIsFullScreen) {
+      // 總是保存當前位置
       sessionStorage.setItem(`${id}_pos`, JSON.stringify({ x: pos.x, y: pos.y }))
-      setPos({ x: window.innerWidth * 0.2, y: window.innerHeight * 0.05 })
-    } else {
-      // 恢復位置
-      try {
-        const savedPos = sessionStorage.getItem(`${id}_pos`)
-        if (savedPos) {
-          setPos(JSON.parse(savedPos))
+      
+      // 根據配置決定是否改變位置
+      if (fullScreenBehavior === 'jump-to-position') {
+        if (isTabMode) {
+          setPos({ x: 100, y: 50 })
+        } else {
+          setPos({ x: window.innerWidth * 0.2, y: window.innerHeight * 0.05 })
         }
-      } catch (e) {
-        console.error('無法恢復之前的位置', e)
+      }
+      // 如果是 'stay-in-place'，就不改變位置
+    } else {
+      // 退出全螢幕時，根據配置決定是否恢復位置
+      if (fullScreenBehavior === 'jump-to-position') {
+        try {
+          const savedPos = sessionStorage.getItem(`${id}_pos`)
+          if (savedPos) {
+            setPos(JSON.parse(savedPos))
+          }
+        } catch (e) {
+          console.error('無法恢復之前的位置', e)
+        }
       }
     }
-    
-    // 更新窗口大小
-    setTimeout(() => {
-      if (windowRef.current) {
-        const rect = windowRef.current.getBoundingClientRect()
-        updateWindow(id, {
-          width: rect.width,
-          height: rect.height
-        })
-        checkAndResolveOverlaps()
-      }
-    }, 300)
   }
   
-  // 處理鼠標事件
+  // 處理鼠標事件 - 保持原有拖拽功能
   const handleMouseDown = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement
     const tag = target.tagName
@@ -106,39 +130,23 @@ export function useFloatingWindow({
     startDrag(e)
   }
   
-  // 更新窗口
-  useEffect(() => {
-    if (!windowRef.current) return
-    
-    setTimeout(() => {
-      const rect = windowRef.current?.getBoundingClientRect()
-      if (!rect) return
-      
-      updateWindow(id, {
-        width: rect.width,
-        height: rect.height
-      })
-      
-      // 檢查是否在群組中並重新排列
-      const groups = useGroupsStore.getState().groups
-      const myGroup = groups.find(g => g.memberIds.includes(id))
-      
-      if (myGroup) {
-        useGroupsStore.getState().layoutGroupMembersVertically(myGroup.id)
-      }
-      
-      checkAndResolveOverlaps()
-    }, 100)
-  }, [id, isCollapsed, isFullScreen, updateWindow, checkAndResolveOverlaps])
+  // 計算窗口可見性
+  const isWindowVisible = isTabMode ? isTabExpanded : !isCollapsed
   
   return {
     windowRef,
     pos,
-    isCollapsed,
+    isCollapsed: isTabMode ? !isTabExpanded : isCollapsed, // Tab 模式下用展開狀態決定
     isFullScreen,
-    toggleCollapse,
+    toggleCollapse: isTabMode ? () => setIsTabExpanded(!isTabExpanded) : toggleCollapse,
     toggleFullScreen,
     handleMouseDown,
-    setPos
+    setPos,
+    
+    // Tab 模式專用屬性
+    isTabMode,
+    isTabExpanded,
+    tabPosition,
+    isWindowVisible
   }
 }

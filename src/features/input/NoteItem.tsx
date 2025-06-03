@@ -17,8 +17,6 @@
  * - 任意需要可排序、可刪除的備註欄位清單
  */
 
-
-
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -39,6 +37,7 @@ interface NoteItemProps {
   isFullScreen?: boolean;
 }
 
+
 const NoteItem: React.FC<NoteItemProps> = ({
   note,
   index,
@@ -54,19 +53,39 @@ const NoteItem: React.FC<NoteItemProps> = ({
 }) => {
   const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [deletePos, setDeletePos] = useState<{ x: number; y: number } | null>(null);
+  const [textareaHeight, setTextareaHeight] = useState(84); // 初始3行高度
   const containerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   // 記錄拖曳開始時間，用於識別是否是長時間的拖曳操作
   const dragStartTime = useRef<number | null>(null);
 
+  // 計算需要的行數
+  const calculateLines = () => {
+    if (!textareaRef.current) return 3;
+    
+    const lineHeight = 28;
+    const scrollHeight = textareaRef.current.scrollHeight;
+    const contentLines = note.value.split('\n').length;
+    const calculatedHeight = Math.max(scrollHeight, contentLines * lineHeight);
+    
+    return Math.max(3, Math.ceil(calculatedHeight / lineHeight));
+  };
+
   useEffect(() => {
-    if (isDeleteMode && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setDeletePos({
-        x: rect.left + rect.width / 2 - 75, // 150 寬的一半
-        y: rect.top + rect.height / 2 - 16, // 約 h-8 的一半
-      });
-    }
-  }, [isDeleteMode]);
+  if (isDeleteMode && containerRef.current) {
+    const rect = containerRef.current.getBoundingClientRect();
+
+    const x = rect.left + rect.width / 2 - 75; // 滑桿寬度 150 的一半
+
+    // 以 NoteItem 中央偏上為基準，但限制不超出畫面範圍
+    const idealY = rect.top + window.scrollY + rect.height * 0.25 - 16;
+    const minY = window.scrollY + 20;
+    const maxY = window.scrollY + window.innerHeight - 60;
+    const y = Math.max(minY, Math.min(idealY, maxY));
+
+    setDeletePos({ x, y });
+  }
+}, [isDeleteMode]);
 
   // 當組件卸載時，確保不會留下未完成的拖曳狀態
   useEffect(() => {
@@ -145,9 +164,12 @@ const NoteItem: React.FC<NoteItemProps> = ({
     <>
       <div
         ref={containerRef}
-        className={`relative flex items-start rounded-lg transition-all hover:bg-gray-50 ${
-          isDragOver ? 'border-t-2 border-blue-400' : ''
-        } ${isDragging ? 'opacity-50' : 'opacity-100'} mb-3 border border-gray-200 bg-white`}
+        className={`relative flex items-start transition-all mb-3 ${
+          isDragOver ? 'border-t-2 border-navy' : ''
+        } ${isDragging ? 'opacity-50' : 'opacity-100'}`}
+        style={{
+          background: 'transparent'
+        }}
         draggable={!isDeleteMode}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
@@ -190,32 +212,80 @@ const NoteItem: React.FC<NoteItemProps> = ({
             e.stopPropagation();
           }}
         >
-          <div className="mb-2">
+          <div className="relative mb-">
             <input
               type="text"
               value={note.title}
               disabled={isDeleteMode}
               onChange={(e) => onUpdateNote(note.id, 'title', e.target.value)}
               placeholder={`筆記小標${index + 1}`}
-              className="w-full text-sm font-semibold text-gray-500 placeholder-gray-300 outline-none pb-1"
-              // 阻止輸入框的滑鼠事件冒泡
+              className="w-full text-sm font-semibold text-navy placeholder-grayish outline-none transition-all duration-200 leading-7 h-7"
+              style={{
+                background: 'transparent',
+                padding: '0.375rem 0',
+                border: 'none'
+              }}
               onMouseDown={(e) => e.stopPropagation()}
             />
+            {/* 橫紋效果 - 標題下方 */}
+            <div 
+              className="absolute left-0 right-0 bottom-0"
+              style={{
+                height: '1px',
+                background: 'rgba(120, 140, 170, 0.3)',
+                marginLeft: '0.625rem',
+                marginRight: '0.625rem'
+              }}
+            />
           </div>
-          <textarea
-            value={note.value}
-            disabled={isDeleteMode}
-            onChange={(e) => {
-              onUpdateNote(note.id, 'value', e.target.value);
-              e.target.style.height = 'auto';
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
-            placeholder="筆記內容..."
-            className="w-full text-sm resize-none overflow-hidden outline-none placeholder-gray-400"
-            rows={isFullScreen ? 4 : 1}
-            // 阻止文本區域的滑鼠事件冒泡
-            onMouseDown={(e) => e.stopPropagation()}
-          />
+          
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              value={note.value}
+              disabled={isDeleteMode}
+              onChange={(e) => {
+                onUpdateNote(note.id, 'value', e.target.value);
+                // 自動調整高度
+                setTimeout(() => {
+                  if (textareaRef.current) {
+                    textareaRef.current.style.height = 'auto';
+                    const lineHeight = 28; // 保留這個用於計算
+                    const newHeight = Math.max(84, textareaRef.current.scrollHeight);
+                    textareaRef.current.style.height = `${newHeight}px`;
+                    setTextareaHeight(newHeight);
+                  }
+                }, 0);
+              }}
+              placeholder="筆記內容..."
+              className="w-full text-sm resize-none overflow-hidden outline-none placeholder-grayish transition-all duration-200 relative z-10 leading-7 min-h-21"
+              style={{
+                background: 'transparent',
+                padding: '0.375rem 0',
+                color: '#1e2a38',
+                border: 'none',
+                height: `${textareaHeight}px`
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            />
+            
+            {/* 動態橫紋背景 */}
+            <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
+              {Array.from({ length: calculateLines() }, (_, index) => (
+                <div
+                  key={index}
+                  className="absolute left-0 right-0"
+                  style={{
+                    top: `${(index + 1) * 28 - 1}px`,
+                    height: '1px',
+                    background: 'rgba(120, 140, 170, 0.3)',
+                    marginLeft: '0.625rem',
+                    marginRight: '0.625rem'
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* 刪除按鈕 */}
@@ -226,14 +296,14 @@ const NoteItem: React.FC<NoteItemProps> = ({
             onMouseDown={(e) => e.stopPropagation()}
           >
             <button
-              className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-md text-xs"
+              className="px-2 py-1 text-gray-400 hover:text-gray-700 rounded-md text-sm border border-transparent hover:border-gray-300 transition"
               onClick={(e) => {
                 // 阻止冒泡
                 e.stopPropagation();
                 setIsDeleteMode(true);
               }}
             >
-              －
+              ×
             </button>
           </div>
         )}
@@ -242,15 +312,16 @@ const NoteItem: React.FC<NoteItemProps> = ({
       {/* Portal 渲染滑桿 */}
       {isDeleteMode && deletePos && (
         <SlideToDeleteButton
-          position={deletePos}
-          onConfirm={() => {
-            onDeleteNote(note.id);
-            setIsDeleteMode(false);
-          }}
-          onCancel={() => setIsDeleteMode(false)}
-          trackWidth={150}
-          confirmText="→ 滑動刪除"
-        />
+        position={deletePos}
+        onConfirm={() => {
+          onDeleteNote(note.id);
+          setIsDeleteMode(false);
+        }}
+        onCancel={() => setIsDeleteMode(false)}
+        trackWidth={150}
+        confirmText="→ 滑動刪除"
+      />
+      
       )}
     </>
   );

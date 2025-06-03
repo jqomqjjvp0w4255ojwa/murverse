@@ -1,20 +1,4 @@
-// components/fragments/InputBarHeader.tsx
-/**
- * InputBarHeader.tsx
- *
- * 📌 用途說明：
- * 浮動輸入欄（FloatingInputBar）的標頭元件，包含縮放、收合等控制按鈕。
- *
- * 🧩 功能特色：
- * - 展示標題「碎片」
- * - 提供收合與全螢幕切換的控制按鈕（透過 props callback）
- * - 圖示視覺明確，操作直覺
- *
- * ✅ 使用場景：
- * - 僅在 FloatingInputBar 展開狀態中顯示此區域
- */
-
-
+// src/features/input/InputBarHeader.tsx
 'use client'
 
 import React from 'react'
@@ -23,28 +7,51 @@ interface InputBarHeaderProps {
   isFullScreen: boolean
   onCollapse: () => void
   onToggleFullScreen: () => void
+  isTabMode?: boolean // 新增：是否為 Tab 模式
 }
 
 export default function InputBarHeader({
   isFullScreen,
   onCollapse,
-  onToggleFullScreen
+  onToggleFullScreen,
+  isTabMode = false
 }: InputBarHeaderProps) {
+  
+  const handleCollapseClick = () => {
+    // Tab 模式下的收合：回到 tab 狀態
+    if (isTabMode) {
+      // 觸發 tab 收合事件
+      globalThis.window?.dispatchEvent(new CustomEvent('tab-collapse', {
+        detail: { windowId: 'floating-input-bar' }
+      }))
+    } else {
+      // 原有的收合邏輯
+      onCollapse()
+    }
+  }
+  
   return (
     <div className="flex justify-between items-center mb-2">
-      <div className="text-sm font-medium text-gray-700">碎片</div>
+      <div className="text-sm font-medium text-gray-700"></div>
       <div className="flex items-center gap-2">
+        
+        {/* 收合按鈕 (-) 
         <button
-          onClick={onCollapse}
-          className="w-6 h-6 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100"
+          onClick={handleCollapseClick}
+          className="w-6 h-6 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-red-500"
+          title={isTabMode ? "收合到 Tab" : "收合窗口"}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
         </button>
+        */}
+        
+        {/* 全螢幕按鈕 */}
         <button
           onClick={onToggleFullScreen}
           className="w-6 h-6 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100"
+          title={isFullScreen ? "退出全螢幕" : "全螢幕"}
         >
           {isFullScreen ? (
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

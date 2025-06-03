@@ -61,19 +61,23 @@ const DragToDeleteZone: React.FC<DragToDeleteZoneProps> = ({
 
   // 監聽滑鼠放開事件
   useEffect(() => {
-    const handleMouseUp = () => {
+    const handleMouseUp = async () => {
       if (isOver && draggingTag && !deleteConfirmed) {
         // 顯示確認動畫
         setDeleteConfirmed(true)
         
         // 這裡可以添加彈出確認窗口，但這裡使用延時作為示範
-        const timer = setTimeout(() => {
-          // 實際執行刪除操作
-          const result = TagsService.deleteTag(draggingTag)
-          console.log(`🗑️ ${result.message}`)
-          
-          // 重置狀態
-          setDeleteConfirmed(false)
+        const timer = setTimeout(async () => {
+          try {
+            // 實際執行刪除操作 - 正確處理異步函數
+            const result = await TagsService.deleteTag(draggingTag)
+            console.log(`🗑️ ${result.message}`)
+          } catch (error) {
+            console.error('刪除標籤失敗:', error)
+          } finally {
+            // 重置狀態
+            setDeleteConfirmed(false)
+          }
         }, 500)
         
         return () => clearTimeout(timer)

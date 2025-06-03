@@ -80,6 +80,77 @@
   }
 }
 
+@keyframes slide-in {
+  from {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+}
+
+@keyframes window-collapse {
+  0% {
+    transform: scale(1) translate(0, 0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.3) translateX(-1vw);
+    opacity: 0;
+  }
+}
+@keyframes slide-into-tab {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+}
+
+
+/* 簡單的縮放動畫 - 從中央為基準點 */
+.scale-animation {
+  animation: scaleToggle 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes scaleToggle {
+  0% { 
+    transform: scale(1); 
+  }
+  50% { 
+    transform: scale(0.95); 
+  }
+  100% { 
+    transform: scale(1); 
+  }
+}
+
+
+
+.window-enter {
+  animation: slide-in 0.3s ease-out forwards;
+}
+
+.window-exit {
+  animation: slide-into-tab 0.45s ease-in-out forwards;
+}
+
 /* Portal 容器 */
 #slide-delete-portal,
 #slide-delete-note-portal {
@@ -162,4 +233,57 @@ body {
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #777;
   }
+}
+/* == 滑鼠 hover 才出現捲軸 - scrollbar-hover 類別 == */
+.scrollbar-hover::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-hover:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 140, 170, 0.15); /* ← 想更淡就調這裡 */
+  border-radius: 3px;
+}
+
+/* 不顯示捲軸 */
+.scrollbar-invisible::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* 顯示捲軸 */
+.scrollbar-hover::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-hover::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 140, 170, 0.15);
+  border-radius: 3px;
+}
+
+/* === 補上 textarea 專用的細捲軸樣式 === */
+textarea.scrollbar-hover::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+textarea.scrollbar-hover:hover::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+textarea.scrollbar-hover:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(120, 140, 170, 0.15);
+  border-radius: 3px;
+}
+
+textarea.scrollbar-invisible::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
 }

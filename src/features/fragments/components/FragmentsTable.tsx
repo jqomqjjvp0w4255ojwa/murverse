@@ -19,11 +19,11 @@
 'use client'
 
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
-import { useTagsStore } from '@/features/tags/store/useTagsStore'
+import { useGlobalTagsStore } from '@/features/tags/store/useGlobalTagsStore'
 
 export default function FragmentsTable() {
   const { fragments, searchQuery } = useFragmentsStore()
-  const { selectedTags, excludedTags } = useTagsStore()
+  const { selectedTags, excludedTags } = useGlobalTagsStore()
 
   // 應用搜尋與標籤篩選
   const visibleFragments = fragments.filter(f =>

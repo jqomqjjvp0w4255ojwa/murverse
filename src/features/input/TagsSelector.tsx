@@ -38,18 +38,21 @@ export default function TagsSelector({
 }: TagsSelectorProps) {
   return (
     <div className="flex flex-wrap gap-2 items-center">
-      <button
+        <button
         ref={tagButtonRef as RefObject<HTMLButtonElement>} // 使用類型轉換
-        className="px-2 py-1 bg-pink-50 text-pink-500 border border-pink-300 rounded-full text-sm"
+        className="ml-8 mt-2 mb-2 px-3 py-1 bg-kraft rounded-lg text-sm font-medium border border-kraft/20 transition-all duration-200 hover:bg-kraft/80 hover:-translate-y-0.5"
         onClick={onOpenTagsWindow}
+        style={{ color: '#4a5568' }}
+        
       >
-        添加標籤：
+        #
       </button>
       {tags.map(tag => (
         <span
           key={tag}
-          className="px-2 py-1 bg-green-100 border border-green-400 text-green-700 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-green-200"
+          className="px-2 py-1 bg-kraft rounded-lg text-sm font-medium border border-kraft/20 transition-all duration-200 hover:bg-kraft/80 hover:-translate-y-0.5"
           onClick={() => onRemoveTag(tag)}
+          style={{ color: '#4a5568' }}
         >
           #{tag}
           <span className="ml-1 text-xs hover:text-red-500">×</span>

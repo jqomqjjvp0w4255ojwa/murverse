@@ -1,8 +1,7 @@
 // src/features/tags/utils/tagDiagnostics.ts
 
-import { useTagsStore } from '@/features/tags/store/useTagsStore'
-import { useTagCollectionStore } from '@/features/tags/store/useTagCollectionStore'
 import { useGlobalTagsStore } from '@/features/tags/store/useGlobalTagsStore'
+import { useTagCollectionStore } from '@/features/tags/store/useTagCollectionStore'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
 import { useSingleUserTagSync } from '@/shared/hook/useSingleUserTagSync'
 
@@ -12,7 +11,7 @@ import { useSingleUserTagSync } from '@/shared/hook/useSingleUserTagSync'
  */
 export function runTagDiagnostics() {
   // 獲取各種標籤數據
-  const { globalTags } = useTagsStore.getState()
+  const { globalTags } = useGlobalTagsStore.getState()
   const { collectedTags } = useTagCollectionStore.getState()
   const { globalTags: realGlobalTags } = useGlobalTagsStore.getState()
   const { fragments } = useFragmentsStore.getState()

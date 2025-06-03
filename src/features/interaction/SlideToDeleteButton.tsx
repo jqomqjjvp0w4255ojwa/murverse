@@ -102,24 +102,39 @@ const SlideToDeleteButton: React.FC<SlideToDeleteButtonProps> = ({
     onConfirm();
   };
 
-  const content = (
+ const content = (
+  <div
+    style={{
+      ...(usePortal && position
+        ? {
+            position: 'absolute',
+            top: `${position.y}px`,
+            left: `${position.x}px`,
+            zIndex: 9999,
+          }
+        : {
+            position: 'relative',
+          }),
+    }}
+  >
+    {/* ⬅️ 取消按鈕（右上角） */}
+    {onCancel && (
+      <button
+        onClick={onCancel}
+        className="absolute -top-4 -right-2 text-gray-400 hover:text-gray-600 text-sm"
+        style={{ zIndex: 10000 }}
+      >
+        ×
+      </button>
+    )}
+
+    {/* 滑動區域 */}
     <div
       ref={trackRef}
+      className="h-8 bg-red-100 rounded-full overflow-hidden relative"
       style={{
-        ...(usePortal && position
-          ? {
-              position: 'absolute',
-              top: `${position.y}px`,
-              left: `${position.x}px`,
-              zIndex: 9999,
-              width: `${trackWidth}px`,
-            }
-          : {
-              position: 'relative',
-              width: `${trackWidth}px`,
-            }),
+        width: `${trackWidth}px`,
       }}
-      className="h-8 bg-red-100 rounded-full overflow-hidden"
       onDragStart={(e) => e.preventDefault()}
     >
       <div
@@ -144,7 +159,8 @@ const SlideToDeleteButton: React.FC<SlideToDeleteButtonProps> = ({
         {confirmText} ({remainingTime})
       </div>
     </div>
-  );
+  </div>
+);
 
   return usePortal && position ? ReactDOM.createPortal(content, document.body) : content;
 };

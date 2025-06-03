@@ -18,13 +18,12 @@
  * - 複雜筆記編輯介面的子結構
  */
 
-
-
 'use client'
 
 import React, { useState, useEffect } from 'react';
 import { Note } from '@/features/fragments/types/fragment';
 import NoteItem from './NoteItem';
+import { useHoverScrollbar } from '@/features/interaction/useHoverScrollbar'
 
 interface NotesListProps {
   notes: Note[];
@@ -43,6 +42,7 @@ const NotesList: React.FC<NotesListProps> = ({
   onReorderNotes,
   onAddNote
 }) => {
+  const { hovering: isHoveringScrollbar, bind: scrollbarHoverHandlers } = useHoverScrollbar(20)
   const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   // 新增狀態用於追蹤是否正在拖曳筆記
@@ -171,8 +171,10 @@ const NotesList: React.FC<NotesListProps> = ({
 
   return (
     <div 
-      className={`overflow-y-auto space-y-3 ${isFullScreen ? 'h-140' : 'max-h-80'}`}
-      // 防止在此容器上開始拖曳
+      className={`overflow-y-auto space-y-3 ${isHoveringScrollbar ? 'scrollbar-hover' : 'scrollbar-invisible'} ${
+        isFullScreen ? 'h-[35rem]' : 'max-h-[20rem]'
+      }`}
+      {...scrollbarHoverHandlers}
       onDragStart={(e) => {
         if (!draggedNoteId) {
           e.preventDefault();
@@ -197,13 +199,13 @@ const NotesList: React.FC<NotesListProps> = ({
         />
       ))}
 
-      {/* 新增按鈕 */}
+            {/* 新增按鈕 */}
       <div className="flex justify-end p-2">
         <button
-          className="px-2 py-1 bg-blue-500 text-white rounded-full text-xs"
+          className="w-8 h-8 text-gray-400 rounded-full text-lg font-light transition-all duration-200 hover:text-gray-600 hover:scale-110 flex items-center justify-center"
           onClick={onAddNote}
         >
-          ＋ 新增筆記
+          +
         </button>
       </div>
     </div>

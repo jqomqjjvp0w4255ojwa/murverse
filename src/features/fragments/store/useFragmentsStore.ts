@@ -2,12 +2,19 @@
 
 import { create } from 'zustand'
 import { Fragment, Note } from '@/features/fragments/types/fragment'
-import { loadFragments, saveFragments } from '@/features/fragments/services/FragmentsRepository'
+import { loadFragments, saveFragments } from '@/features/fragments/services/SupabaseFragmentsRepository'
 import { v4 as uuidv4 } from 'uuid'
 import { ParsedSearch, SearchToken } from '@/features/search/useAdvancedSearch'
 import { matchText, matchFragment, matchesSearchToken } from '@/features/search/searchHelpers'
 import { isDateInRange } from '@/features/fragments/utils'
 import { SORT_FIELDS, SORT_ORDERS } from '@/features/fragments/constants'
+import { getNotesByFragmentId } from '@/features/fragments/services/SupabaseNotesRepository'
+import { addNote } from '@/features/fragments/services/SupabaseNotesRepository'
+import { getTagsByFragmentId } from '@/features/fragments/services/SupabaseTagsRepository'
+import {
+  addTagToFragment as addTagRemote,
+  removeTagFromFragment as removeTagRemote
+} from '@/features/fragments/services/SupabaseTagsRepository'
 
 // 使用常量來定義排序方式
 type SortField = typeof SORT_FIELDS[keyof typeof SORT_FIELDS]
@@ -75,10 +82,19 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   advancedSearch: null,
 
   // 載入碎片資料
-  load: () => {
+    load: async () => {
     if (!isClient) return
-    const fragments = loadFragments()
-    set({ fragments })
+    const fragments = await loadFragments()
+
+    const fragmentsWithAll = await Promise.all(
+      fragments.map(async (f) => ({
+        ...f,
+        notes: await getNotesByFragmentId(f.id),
+        tags: await getTagsByFragmentId(f.id)
+      }))
+    )
+
+    set({ fragments: fragmentsWithAll })
   },
 
   // 儲存碎片資料
@@ -235,19 +251,24 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   /**
    * 添加筆記到碎片
    */
-  addNoteToFragment: (fragmentId, note) => {
+    addNoteToFragment: async (fragmentId, note) => {
+    const updatedAt = new Date().toISOString()
+
+    // 更新 Zustand 狀態
     set(state => ({
       fragments: state.fragments.map(f =>
         f.id === fragmentId
-          ? { ...f, notes: [...f.notes, note], updatedAt: new Date().toISOString() }
+          ? {
+              ...f,
+              notes: [...f.notes, note],
+              updatedAt
+            }
           : f
       )
     }))
-    
-    // 自動儲存
-    if (isClient) {
-      get().save()
-    }
+
+    // 同步寫入 Supabase
+    await addNote(fragmentId, note)
   },
 
   /**
@@ -327,44 +348,38 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   /**
    * 添加標籤到碎片
    */
-  addTagToFragment: (fragmentId, tag) => {
-    set(state => ({
-      fragments: state.fragments.map(f =>
-        f.id === fragmentId && !f.tags.includes(tag)
-          ? {
+   addTagToFragment: async (fragmentId, tag) => {
+  set(state => ({
+    fragments: state.fragments.map(f =>
+      f.id === fragmentId && !f.tags.includes(tag)
+        ? {
             ...f,
             tags: [...f.tags, tag],
             updatedAt: new Date().toISOString()
           }
-          : f
-      )
-    }))
-    
-    // 自動儲存
-    if (isClient) {
-      get().save()
-    }
+        : f
+    )
+  }))
+
+  await addTagRemote(fragmentId, tag)
   },
 
   /**
    * 從碎片移除標籤
    */
-  removeTagFromFragment: (fragmentId, tag) => {
-    set(state => ({
-      fragments: state.fragments.map(f =>
-        f.id === fragmentId
-          ? {
+  removeTagFromFragment: async (fragmentId, tag) => {
+  set(state => ({
+    fragments: state.fragments.map(f =>
+      f.id === fragmentId
+        ? {
             ...f,
             tags: f.tags.filter(t => t !== tag),
             updatedAt: new Date().toISOString()
           }
-          : f
-      )
-    }))
-    
-    // 自動儲存
-    if (isClient) {
-      get().save()
-    }
-  },
+        : f
+    )
+  }))
+
+  await removeTagRemote(fragmentId, tag)
+},
 }))

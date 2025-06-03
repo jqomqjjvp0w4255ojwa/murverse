@@ -50,7 +50,7 @@ const TagsHeader: React.FC<TagsHeaderProps> = ({
   return (
     <div className="flex justify-between items-center mb-3 cursor-move">
       <h3 className="text-lg font-bold">
-        {editMode ? '✏️ 編輯標籤' : (mode === 'add' ? '✔️ 添加標籤' : '💬 搜尋碎片')}
+        {editMode ? '✏️ 編輯標籤' : (mode === 'add' ? '添加標籤' : '搜尋碎片')}
       </h3>
       <div className="flex gap-2 items-center">
         {/* 只在非隱藏狀態顯示編輯按鈕 */}
@@ -74,7 +74,7 @@ const TagsHeader: React.FC<TagsHeaderProps> = ({
         </button>
       )}
               
-        {/* 收合按鈕 */}
+        {/* 收合按鈕 
         <button
           onClick={onCollapseClick}
           className="text-sm px-2 py-1 text-gray-600 hover:text-black"
@@ -83,7 +83,7 @@ const TagsHeader: React.FC<TagsHeaderProps> = ({
           －
         </button>
 
-        {/* 全屏切換按鈕 */}
+        {/* 全屏切換按鈕 
         <button 
           onClick={onToggleFullScreen} 
           className="w-6 h-6 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100"
@@ -104,7 +104,7 @@ const TagsHeader: React.FC<TagsHeaderProps> = ({
               <line x1="3" y1="21" x2="10" y2="14"></line>
             </svg>
           )}
-        </button>
+        </button>*/}
       </div>
     </div>
   );

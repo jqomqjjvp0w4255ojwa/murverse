@@ -97,18 +97,16 @@ const FragmentCard = ({
   
   // 處理刪除標籤
   const handleDeleteTag = (tagName: string) => {
-    // 顯示確認對話框
-    const isConfirmed = window.confirm(`確定要從所有碎片中刪除標籤「${tagName}」嗎？此操作無法撤銷。`)
-    
-    if (isConfirmed) {
-      const result = TagsService.deleteTag(tagName)
-      if (result.success) {
-        // 可以在這裡添加一個通知或Toast提示
-        console.log(`🗑️ ${result.message}`)
+      const isConfirmed = window.confirm(`確定要從所有碎片中刪除標籤「${tagName}」嗎？此操作無法撤銷。`)
+      
+      if (isConfirmed) {
+        TagsService.deleteTag(tagName).then(result => {
+          if (result.success) {
+            console.log(`🗑️ ${result.message}`)
+          }
+        })
       }
     }
-  }
-  
   // 處理標籤拖曳開始
   const handleTagDragStart = (e: React.MouseEvent, tagName: string) => {
     e.stopPropagation() // 防止觸發卡片拖曳

@@ -80,7 +80,7 @@ export interface FragmentSearchOptions {
     to?: string;
   };
   text?: string;            // 文本搜尋
-  sortBy?: 'createdAt' | 'updatedAt' | 'order'; // 排序方式
+  sortBy?: 'createdAt' | 'updatedAt' | 'sortOrder'; // 排序方式
   sortOrder?: 'asc' | 'desc'; // 排序順序
   limit?: number;           // 限制數量
   offset?: number;          // 偏移量
@@ -96,7 +96,7 @@ export interface Fragment {
   tags: string[];               // 標籤列表
   notes: Note[];                // 筆記列表
   relations?: Relation[];       // 關聯列表
-  order?: number;               // 排序
+  sortOrder?: number;                // 排序
   createdAt: string;            // 創建時間
   updatedAt: string;            // 更新時間
   meta?: FragmentMeta;          // 元數據

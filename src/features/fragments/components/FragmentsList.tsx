@@ -20,7 +20,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
-import { useTagsStore } from '@/features/tags/store/useTagsStore'
+import { useGlobalTagsStore } from '@/features/tags/store/useGlobalTagsStore'
 import { Fragment } from '@/features/fragments/types/fragment'
 import debounce from 'lodash.debounce'
 import {
@@ -86,7 +86,7 @@ export default function FragmentsList() {
     setSearchQuery,
   } = useFragmentsStore()
 
-  const { selectedTags, excludedTags } = useTagsStore()
+  const { selectedTags, excludedTags } = useGlobalTagsStore()
   const [items, setItems] = useState<string[]>([])
 
   useEffect(() => {
@@ -128,7 +128,7 @@ export default function FragmentsList() {
       selectedTags.every(tag => f.tags.includes(tag)) &&
       excludedTags.every(tag => !f.tags.includes(tag))
     )
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
 
   return (
     <div className="p-4 space-y-4">

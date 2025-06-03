@@ -1,8 +1,9 @@
 // hooks/useTagsIntegration.ts
 'use client'
 
-import { useTagsStore } from '@/features/tags/store/useTagsStore'
+
 import { useCallback } from 'react'
+import { useGlobalTagsStore } from '@/features/tags/store/useGlobalTagsStore'
 
 export function useTagsIntegration() {
   const { 
@@ -10,7 +11,7 @@ export function useTagsIntegration() {
     setMode, 
     setSearchMode,
     setConnected
-  } = useTagsStore()
+  } = useGlobalTagsStore()
 
   // 這個函數將用於替換原有的 openTagSelector 函數
   const openTagSelectorEnhanced = useCallback((pos?: { x: number; y: number }) => {
