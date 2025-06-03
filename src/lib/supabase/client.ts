@@ -1,4 +1,3 @@
-// lib/supabase/client.ts (Client-side only) - 保持你現有的
 'use client'
 import { createClient } from '@supabase/supabase-js'
 
