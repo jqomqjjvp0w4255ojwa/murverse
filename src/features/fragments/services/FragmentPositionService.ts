@@ -8,18 +8,22 @@ export async function saveFragmentPositionToSupabase(fragmentId: string, positio
     return
   }
 
-  const { error } = await supabase
-    .from('fragment_positions')
-    .upsert({
-      fragment_id: fragmentId,
-      row: position.row,
-      col: position.col,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'fragment_id' })
+  try {
+    const { error } = await supabase
+      .from('fragment_positions')
+      .upsert({
+        fragment_id: fragmentId,
+        row: position.row,
+        col: position.col,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'fragment_id' })
 
-  if (error) {
-    console.error(`❌ 雲端儲存位置失敗 fragment: ${fragmentId}`, error)
-  } else {
-    console.log(`✅ 雲端儲存位置成功 fragment: ${fragmentId}`, position)
+    if (error) {
+      console.error(`❌ 雲端儲存位置失敗 fragment: ${fragmentId}`, error)
+    } else {
+      console.log(`✅ 雲端儲存位置成功 fragment: ${fragmentId}`, position)
+    }
+  } catch (error) {
+    console.error(`❌ 儲存位置時發生錯誤: ${fragmentId}`, error)
   }
 }
