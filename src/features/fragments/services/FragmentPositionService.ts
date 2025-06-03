@@ -1,7 +1,13 @@
-import { supabase } from '@/lib/supabase/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { GridPosition } from '@/features/fragments/types/gridTypes'
 
 export async function saveFragmentPositionToSupabase(fragmentId: string, position: GridPosition) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const { error } = await supabase
     .from('fragment_positions')
     .upsert({
