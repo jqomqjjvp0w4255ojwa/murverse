@@ -27,28 +27,30 @@ const TagDragPreview = dynamic(() => import('@/features/fragments/components/Tag
 const DragToDeleteZone = dynamic(() => import('@/features/tags/components/DragToDeleteZone'), { ssr: false })
 
 export default function Home() {
-  // 初始設定空字串或預設值，避免服務器端渲染時的不匹配
+  // 檢查是否在客戶端
+  const [isClient, setIsClient] = useState(false)
   const [currentMode, setCurrentMode] = useState('float')
   const [fragment, setFragment] = useState<Fragment | null>(null)
 
-  // 使用標籤拖曳管理器
-  const { draggingTag, dragPosition, isDragging } = useTagDragManager()
+  // 使用標籤拖曳管理器（只在客戶端）
+  const { draggingTag, dragPosition, isDragging } = isClient ? useTagDragManager() : { draggingTag: null, dragPosition: null, isDragging: false }
   
-  // 使用 store
-  const { mode, load } = useFragmentsStore()
+  // 使用 store（只在客戶端）
+  const { mode, load } = isClient ? useFragmentsStore() : { mode: 'float', load: () => {} }
 
   // 設定關閉函數
   const handleClose = () => {
     setFragment(null)
   }
 
-  // Tab 切換處理
-  const handleTabToggle = (windowId: string, isActive: boolean) => {
-    console.log(`Tab ${windowId} is now ${isActive ? 'active' : 'inactive'}`)
-    // 可以在這裡添加額外的邏輯，比如記錄用戶行為等
-  }
+  useEffect(() => {
+    // 設定客戶端標記
+    setIsClient(true)
+  }, [])
 
   useEffect(() => {
+    if (!isClient) return
+
     // 確保只在客戶端執行
     load()
     // 同步 mode 到本地狀態
@@ -64,24 +66,28 @@ export default function Home() {
         unsubscribe()
       }
     }
-  }, [load, mode])
+  }, [isClient, load, mode])
   
   // 在服務器端渲染時返回一個基本的佔位符
-  if (typeof window === 'undefined') {
-    return <div>Loading...</div>
+  if (!isClient) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    )
   }
   
   return (
     <>
       {/* 主內容區域和浮動窗口 */}
-        {currentMode === 'float' && (
-          <>
-            <FloatingFragmentsField />
-            <FloatingInputBar />
-            <TagsFloatingWindow />
-            <GroupFrame />
-          </>
-        )}
+      {currentMode === 'float' && (
+        <>
+          <FloatingFragmentsField />
+          <FloatingInputBar />
+          <TagsFloatingWindow />
+          <GroupFrame />
+        </>
+      )}
 
       {/* 清單模式 - 保持原樣 */}
       {currentMode === 'list' && (
@@ -101,7 +107,7 @@ export default function Home() {
       <DragToDeleteZone position="bottom-right" />
       
       {/* 全局樣式 */}
-     <style jsx global>{`
+      <style jsx global>{`
         /* 原有的拖曳目標高亮樣式 */
         .fragment-card.tag-drop-target {
           box-shadow: 0 0 0 2px rgba(201, 155, 53, 0.7) !important;

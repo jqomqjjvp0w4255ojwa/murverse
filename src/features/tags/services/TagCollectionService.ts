@@ -1,5 +1,5 @@
 // features/tags/services/TagCollectionService.ts
-import { supabase } from '@/lib/supabaseClient'
+import { supabase } from '@/lib/supabase/supabaseClient'
 import { AuthHelper } from '@/lib/authHelper'
 
 export async function loadCollectedTags(): Promise<string[]> {

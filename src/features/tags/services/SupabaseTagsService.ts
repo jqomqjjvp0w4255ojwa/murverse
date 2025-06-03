@@ -1,7 +1,13 @@
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/supabaseClient'
 import { AuthHelper } from '@/lib/authHelper'
 
 export async function loadGlobalTags(): Promise<{ name: string, count: number }[]> {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return []
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法載入雲端標籤')
@@ -24,6 +30,12 @@ export async function loadGlobalTags(): Promise<{ name: string, count: number }[
 }
 
 export async function saveGlobalTag(name: string) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法儲存標籤')
@@ -46,6 +58,12 @@ export async function saveGlobalTag(name: string) {
 }
 
 export async function deleteGlobalTags(names: string[]) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法刪除標籤')
@@ -66,6 +84,12 @@ export async function deleteGlobalTags(names: string[]) {
 }
 
 export async function renameGlobalTag(oldName: string, newName: string) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法重命名標籤')
@@ -100,6 +124,12 @@ export async function renameGlobalTag(oldName: string, newName: string) {
 }
 
 export async function loadRecentTags(): Promise<string[]> {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return []
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法載入最近標籤')
@@ -122,6 +152,12 @@ export async function loadRecentTags(): Promise<string[]> {
 }
 
 export async function saveRecentTags(tags: string[]) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法儲存最近標籤')

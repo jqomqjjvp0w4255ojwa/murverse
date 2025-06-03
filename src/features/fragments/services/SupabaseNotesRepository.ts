@@ -1,9 +1,15 @@
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/supabaseClient'
 import { Note } from '@/features/fragments/types/fragment'
 
 const TABLE = 'notes'
 
 export async function addNote(fragmentId: string, note: Note) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const { error } = await supabase.from(TABLE).insert({
     id: note.id,
     fragment_id: fragmentId,
@@ -18,6 +24,12 @@ export async function addNote(fragmentId: string, note: Note) {
 }
 
 export async function updateNote(noteId: string, updates: Partial<Note>) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const { error } = await supabase
     .from(TABLE)
     .update({
@@ -29,6 +41,12 @@ export async function updateNote(noteId: string, updates: Partial<Note>) {
 }
 
 export async function deleteNote(noteId: string) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const { error } = await supabase
     .from(TABLE)
     .delete()
@@ -37,6 +55,12 @@ export async function deleteNote(noteId: string) {
 }
 
 export async function getNotesByFragmentId(fragmentId: string): Promise<Note[]> {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return []
+  }
+
   const { data, error } = await supabase
     .from(TABLE)
     .select('*')

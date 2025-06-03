@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient'
+import { supabase } from '@/lib/supabase/supabaseClient'
 import { GridPosition } from '@/features/fragments/types/gridTypes'
 
 export async function saveFragmentPositionToSupabase(fragmentId: string, position: GridPosition) {

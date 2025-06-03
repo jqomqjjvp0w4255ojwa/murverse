@@ -1,7 +1,7 @@
 // lib/authHelper.ts
 'use client'
 
-import { supabase } from '@/lib/supabaseClient'
+import { supabase } from '@/lib/supabase/supabaseClient'
 import { MockAuthService } from '@/lib/mockAuthService'
 
 export interface User {

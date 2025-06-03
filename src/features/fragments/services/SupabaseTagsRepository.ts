@@ -1,8 +1,14 @@
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/supabaseClient'
 
 const TABLE = 'fragment_tags'
 
 export async function getTagsByFragmentId(fragmentId: string): Promise<string[]> {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return []
+  }
+
   const { data, error } = await supabase
     .from(TABLE)
     .select('tag')
@@ -17,6 +23,12 @@ export async function getTagsByFragmentId(fragmentId: string): Promise<string[]>
 }
 
 export async function addTagToFragment(fragmentId: string, tag: string) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const { error } = await supabase
     .from(TABLE)
     .upsert([{ fragment_id: fragmentId, tag }])
@@ -24,6 +36,12 @@ export async function addTagToFragment(fragmentId: string, tag: string) {
 }
 
 export async function removeTagFromFragment(fragmentId: string, tag: string) {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const { error } = await supabase
     .from(TABLE)
     .delete()

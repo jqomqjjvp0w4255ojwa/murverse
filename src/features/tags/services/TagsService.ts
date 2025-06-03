@@ -2,7 +2,7 @@
 
 import { Fragment } from '@/features/fragments/types/fragment'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
-import { supabase } from '@/lib/supabaseClient'
+import { supabase } from '@/lib/supabase/supabaseClient'
 
 async function loadTagsFromSupabase(userId: string, type: 'global' | 'recent'): Promise<string[]> {
   const { data, error } = await supabase

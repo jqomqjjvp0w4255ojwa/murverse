@@ -38,7 +38,7 @@ export default function FloatingInputBar() {
 })
 
   // 從 store 獲取狀態和方法
-  const { fragments, setFragments, save } = useFragmentsStore()
+  const { fragments, setFragments, save, addFragment } = useFragmentsStore()
 
   const { openTagSelector: enhancedOpenTagSelector } = useTagsIntegration()
   const {
@@ -225,32 +225,23 @@ export default function FloatingInputBar() {
   }, [showLine, tagsWindowRef])
 
   /* 提交新碎片 */
-  const handleSubmit = () => {
-    if (!content.trim()) return
-    const now = new Date().toISOString()
-    
-    const filteredNotes = notes.filter(note => 
-      note.title.trim() !== '' || note.value.trim() !== ''
-    )
-    
-    const notesToSave = filteredNotes.length > 0 ? filteredNotes : []
+  const handleSubmit = async () => {
+  if (!content.trim()) return
   
-    const newFragment: Fragment = {
-      id: fragmentId.current,
-      content,
-      type: 'fragment',
-      tags: pendingTags,
-      notes: notesToSave,
-      createdAt: now,
-      updatedAt: now,
-    }
+  const filteredNotes = notes.filter(note => 
+    note.title.trim() !== '' || note.value.trim() !== ''
+  )
   
-    setFragments([newFragment, ...fragments])
-    save()
+  const notesToSave = filteredNotes.length > 0 ? filteredNotes : []
+
+  try {
+    await addFragment(content, pendingTags, notesToSave)
     resetInput()
-    
     fragmentId.current = uuidv4()
+  } catch (error) {
+    console.error('Failed to submit fragment:', error)
   }
+}
 
   /* 清空全部 */
   const handleClear = () => {

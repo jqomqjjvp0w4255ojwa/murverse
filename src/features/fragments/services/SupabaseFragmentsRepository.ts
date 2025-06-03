@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/supabaseClient'
 import { Fragment } from '@/features/fragments/types/fragment'
 import { AuthHelper } from '@/lib/authHelper'
 import { getNotesByFragmentId } from './SupabaseNotesRepository'
@@ -7,6 +7,12 @@ import { getTagsByFragmentId } from './SupabaseTagsRepository'
 const TABLE_NAME = 'fragments'
 
 export async function loadFragments(): Promise<Fragment[]> {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return []
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法載入雲端 fragments')
@@ -50,6 +56,12 @@ export async function loadFragments(): Promise<Fragment[]> {
 }
 
 export async function saveFragments(fragments: Fragment[]): Promise<void> {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法儲存 fragments 到雲端')
@@ -79,14 +91,17 @@ export async function saveFragments(fragments: Fragment[]): Promise<void> {
     console.error('儲存 fragments 失敗:', error.message)
   } else {
     console.log(`✅ 成功儲存 ${fragments.length} 個 fragments 到雲端`)
-    
-    // 註：notes 和 tags 應該分別透過其他服務儲存
-    // 這裡只儲存 fragment 的基本資料
   }
 }
 
 // 新增單個 fragment
 export async function saveFragment(fragment: Fragment): Promise<boolean> {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return false
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法儲存 fragment')
@@ -109,12 +124,6 @@ export async function saveFragment(fragment: Fragment): Promise<boolean> {
   }
 
   console.log(`✅ 成功儲存 fragment: ${fragment.id}`)
-  
-  // 註：如果需要同時儲存 notes 和 tags，需要額外呼叫對應的服務
-  // 例如：
-  // - 透過 SupabaseNotesRepository 儲存 notes
-  // - 透過 SupabaseTagsRepository 儲存 tags
-  
   return true
 }
 
@@ -135,8 +144,6 @@ export async function saveFragmentComplete(fragment: Fragment): Promise<boolean>
     if (fragment.tags && fragment.tags.length > 0) {
       const { addTagToFragment } = await import('./SupabaseTagsRepository')
       
-      // 先清除現有 tags，再新增
-      // 這裡簡化處理，實際可能需要更精細的同步邏輯
       for (const tag of fragment.tags) {
         await addTagToFragment(fragment.id, tag)
       }
@@ -162,6 +169,12 @@ export async function saveFragmentComplete(fragment: Fragment): Promise<boolean>
 
 // 刪除 fragment
 export async function deleteFragment(fragmentId: string): Promise<boolean> {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return false
+  }
+
   const userId = await AuthHelper.getUserId()
   if (!userId) {
     console.warn('無法獲取用戶 ID，無法刪除 fragment')
@@ -180,6 +193,5 @@ export async function deleteFragment(fragmentId: string): Promise<boolean> {
   }
 
   console.log(`✅ 成功刪除 fragment: ${fragmentId}`)
-  // 註：由於設定了 CASCADE，相關的 notes 和 tags 會自動刪除
   return true
 }

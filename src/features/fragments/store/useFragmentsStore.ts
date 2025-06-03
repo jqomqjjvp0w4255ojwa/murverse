@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import { Fragment, Note } from '@/features/fragments/types/fragment'
-import { loadFragments, saveFragments } from '@/features/fragments/services/SupabaseFragmentsRepository'
+import { apiClient } from '@/services/api-client'
 import { v4 as uuidv4 } from 'uuid'
 import { ParsedSearch, SearchToken } from '@/features/search/useAdvancedSearch'
 import { matchText, matchFragment, matchesSearchToken } from '@/features/search/searchHelpers'
@@ -56,7 +56,7 @@ interface FragmentsState {
   getFilteredFragmentsByAdvancedSearch: () => Fragment[]
 
   // Fragment 操作
-  addFragment: (content: string, tags: string[], notes: Note[]) => void
+  addFragment: (content: string, tags: string[], notes: Note[]) => Promise<void>
   addNoteToFragment: (fragmentId: string, note: Note) => void
   updateNoteInFragment: (fragmentId: string, noteId: string, updates: Partial<Note>) => void
   removeNoteFromFragment: (fragmentId: string, noteId: string) => void
@@ -83,36 +83,30 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
 
   // 載入碎片資料
     load: async () => {
-    if (!isClient) return
-    const fragments = await loadFragments()
-
-    const fragmentsWithAll = await Promise.all(
-      fragments.map(async (f) => ({
-        ...f,
-        notes: await getNotesByFragmentId(f.id),
-        tags: await getTagsByFragmentId(f.id)
-      }))
-    )
-
-    set({ fragments: fragmentsWithAll })
-  },
+  if (!isClient) return
+  
+  try {
+    const fragments = await apiClient.getFragments()
+    set({ fragments })
+  } catch (error) {
+    console.error('Failed to load fragments:', error)
+  }
+},
 
   // 儲存碎片資料
   save: () => {
-    if (!isClient) return
-    const { fragments } = get()
-    saveFragments(fragments)
-  },
+  console.log('Save function called - fragments are now saved immediately')
+},
 
   // 設置整個碎片陣列
   setFragments: (fragments) => {
-    set({ fragments })
-    // 自動儲存到本地
-    if (isClient) {
-      localStorage.removeItem('fragment_positions') 
-      setTimeout(() => saveFragments(fragments), 0)
-    }
-  },
+  set({ fragments })
+  // 自動儲存到本地
+  if (isClient) {
+    localStorage.removeItem('fragment_positions') 
+    // 移除 saveFragments 呼叫，因為我們現在用 API
+  }
+},
 
   // 設置搜尋查詢
   setSearchQuery: (query) => set({ searchQuery: query }),
@@ -226,27 +220,24 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   /**
    * 添加新碎片
    */
-  addFragment: (content, tags, notes) => {
-    const now = new Date().toISOString()
-    const newFragment: Fragment = {
-      id: uuidv4(),
+  addFragment: async (content, tags, notes) => {
+  if (!isClient) return
+  
+  try {
+    const newFragment = await apiClient.createFragment({
       content,
-      type: 'fragment',
       tags,
       notes,
-      createdAt: now,
-      updatedAt: now,
-    }
-
+      type: 'fragment'
+    })
+    
     set(state => ({
       fragments: [newFragment, ...state.fragments]
     }))
-
-    // 自動儲存
-    if (isClient) {
-      get().save()
-    }
-  },
+  } catch (error) {
+    console.error('Failed to add fragment:', error)
+  }
+},
 
   /**
    * 添加筆記到碎片
