@@ -7,12 +7,7 @@ class ApiClient {
   private baseUrl = '/api'
 
   private async getAuthHeaders(): Promise<Record<string, string>> {
-    // 開發模式不需要認證 headers
-    if (process.env.NODE_ENV === 'development') {
-      return {}
-    }
-
-    // 生產模式需要認證
+    // 始終使用真實認證，不再檢查開發模式
     const supabase = getSupabaseClient()
     if (!supabase) {
       throw new Error('Supabase client not available')

@@ -6,6 +6,8 @@ import dynamic from 'next/dynamic'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
 import { Fragment } from '@/features/fragments/types/fragment'
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
+import AuthButton from '@/features/fragments/components/AuthButton'
+
 
 // 動態導入組件
 const TagsFloatingWindow = dynamic(() =>
@@ -33,10 +35,10 @@ export default function Home() {
   const [fragment, setFragment] = useState<Fragment | null>(null)
 
   // 使用標籤拖曳管理器（只在客戶端）
-  const { draggingTag, dragPosition, isDragging } = isClient ? useTagDragManager() : { draggingTag: null, dragPosition: null, isDragging: false }
+  const { draggingTag, dragPosition, isDragging } = useTagDragManager()
   
   // 使用 store（只在客戶端）
-  const { mode, load } = isClient ? useFragmentsStore() : { mode: 'float', load: () => {} }
+  const { mode, load } = useFragmentsStore()
 
   // 設定關閉函數
   const handleClose = () => {
@@ -79,6 +81,8 @@ export default function Home() {
   
   return (
     <>
+     <AuthButton />
+
       {/* 主內容區域和浮動窗口 */}
       {currentMode === 'float' && (
         <>
@@ -86,8 +90,8 @@ export default function Home() {
           <FloatingInputBar />
           <TagsFloatingWindow />
           <GroupFrame />
-        </>
-      )}
+         </>
+    )}
 
       {/* 清單模式 - 保持原樣 */}
       {currentMode === 'list' && (
@@ -95,7 +99,7 @@ export default function Home() {
       )}
 
       {/* 公用組件 - 不受 Tab 影響 */}
-      <FragmentDetailModal fragment={fragment} onClose={handleClose} />
+      <FragmentDetailModal fragment={fragment} onClose={() => setFragment(null)} />
       <FloatingActionButton />
       
       {/* 標籤拖曳預覽 - 在所有視圖模式下都顯示 */}

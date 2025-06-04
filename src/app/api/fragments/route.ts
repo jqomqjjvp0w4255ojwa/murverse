@@ -1,39 +1,49 @@
 // app/api/fragments/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, createDevServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 
-// 統一的用戶 ID 獲取邏輯
+// 簡化的用戶 ID 獲取邏輯
 async function getUserId(request: NextRequest): Promise<string | null> {
-  // 開發模式：使用固定 ID
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔧 [DEV MODE] Using fixed user ID for API')
-    return 'dev-user-12345'
-  }
-
-  // 生產模式：真實認證
   try {
     const supabase = createServerSupabaseClient()
     
-    // 嘗試從 cookies 獲取 session
-    const { data: { user }, error } = await supabase.auth.getUser()
-    
-    if (error || !user) {
-      console.error('❌ Authentication failed:', error?.message)
-      return null
+    // 方法1: 嘗試從 Authorization header 獲取
+    const authHeader = request.headers.get('authorization')
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7)
+      const { data: { user }, error } = await supabase.auth.getUser(token)
+      
+      if (!error && user) {
+        console.log('✅ 從 Header 獲取用戶:', user.id)
+        return user.id
+      }
     }
     
-    return user.id
+    // 方法2: 嘗試從 cookies 獲取（瀏覽器直接訪問）
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      
+      if (!error && user) {
+        console.log('✅ 從 Cookies 獲取用戶:', user.id)
+        return user.id
+      }
+    } catch (cookieError) {
+      console.log('Cookies 方式失敗:', cookieError)
+    }
+    
+    console.error('❌ 所有認證方式都失敗')
+    return null
+    
   } catch (error) {
     console.error('❌ Auth error:', error)
     return null
   }
 }
 
-// 獲取適當的 Supabase client
+// 獲取 Supabase client
 function getSupabaseClient() {
-  return process.env.NODE_ENV === 'development' 
-    ? createDevServerSupabaseClient()
-    : createServerSupabaseClient()
+  return createServerSupabaseClient()
 }
 
 export async function GET(request: NextRequest) {
@@ -41,14 +51,12 @@ export async function GET(request: NextRequest) {
     const userId = await getUserId(request)
     
     if (!userId) {
-      return NextResponse.json({ 
-        error: process.env.NODE_ENV === 'development' 
-          ? 'Development mode auth failed' 
-          : 'Unauthorized' 
-      }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
     const supabase = getSupabaseClient()
+    
+    console.log('🔍 查詢用戶 ID:', userId, '的碎片')
     
     const { data: fragments, error } = await supabase
       .from('fragments')
@@ -60,6 +68,8 @@ export async function GET(request: NextRequest) {
       console.error('Error loading fragments:', error)
       return NextResponse.json({ error: 'Failed to load fragments' }, { status: 500 })
     }
+
+    console.log('📊 找到', fragments?.length || 0, '個碎片')
 
     // 為每個 fragment 載入 notes 和 tags
     const fragmentsWithRelations = await Promise.all(
@@ -89,11 +99,7 @@ export async function POST(request: NextRequest) {
     const userId = await getUserId(request)
     
     if (!userId) {
-      return NextResponse.json({ 
-        error: process.env.NODE_ENV === 'development' 
-          ? 'Development mode auth failed' 
-          : 'Unauthorized' 
-      }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
     const { content, tags, notes, type = 'fragment' } = await request.json()
@@ -105,6 +111,8 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient()
     const now = new Date().toISOString()
     const fragmentId = crypto.randomUUID()
+
+    console.log('💾 新增碎片，用戶 ID:', userId)
 
     // 1. 建立 fragment
     const { error: fragmentError } = await supabase
@@ -149,8 +157,7 @@ export async function POST(request: NextRequest) {
       await supabase.from('notes').insert(noteInserts)
     }
 
-
-    
+    console.log('✅ 碎片新增成功:', fragmentId)
 
     return NextResponse.json({ 
       success: true, 
@@ -169,4 +176,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
-

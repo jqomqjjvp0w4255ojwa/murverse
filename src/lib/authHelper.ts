@@ -16,8 +16,8 @@ export class AuthHelper {
    * 檢查是否為開發模式且使用模擬認證
    */
   private static shouldUseMockAuth(): boolean {
-    return process.env.NODE_ENV === 'development' && 
-           process.env.NEXT_PUBLIC_USE_MOCK_AUTH !== 'false'
+    // 強制使用真實認證，不再使用 Mock
+    return false
   }
 
   /**

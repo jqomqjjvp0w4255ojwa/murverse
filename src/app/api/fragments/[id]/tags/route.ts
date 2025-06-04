@@ -1,19 +1,24 @@
 // app/api/fragments/[id]/tags/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient, createDevServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 
-// 統一的用戶 ID 獲取邏輯
+// 統一的用戶 ID 獲取邏輯 - 移除開發模式
 async function getUserId(request: NextRequest): Promise<string | null> {
-  // 開發模式：使用固定 ID
-  if (process.env.NODE_ENV === 'development') {
-    console.log('🔧 [DEV MODE] Using fixed user ID for Tags API')
-    return 'dev-user-12345'
-  }
-
-  // 生產模式：真實認證
+  // 始終使用真實認證
   try {
     const supabase = createServerSupabaseClient()
-    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    // 從 Authorization header 獲取 token
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ Missing or invalid authorization header')
+      return null
+    }
+
+    const token = authHeader.substring(7) // 移除 'Bearer ' 前綴
+    
+    // 使用 token 獲取用戶
+    const { data: { user }, error } = await supabase.auth.getUser(token)
     
     if (error || !user) {
       console.error('❌ Authentication failed:', error?.message)
@@ -27,11 +32,9 @@ async function getUserId(request: NextRequest): Promise<string | null> {
   }
 }
 
-// 獲取適當的 Supabase client
+// 獲取 Supabase client
 function getSupabaseClient() {
-  return process.env.NODE_ENV === 'development' 
-    ? createDevServerSupabaseClient()
-    : createServerSupabaseClient()
+  return createServerSupabaseClient()
 }
 
 // 新增標籤到 fragment
@@ -43,11 +46,7 @@ export async function POST(
     const userId = await getUserId(request)
     
     if (!userId) {
-      return NextResponse.json({ 
-        error: process.env.NODE_ENV === 'development' 
-          ? 'Development mode auth failed' 
-          : 'Unauthorized' 
-      }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
     const fragmentId = params.id

@@ -1,8 +1,9 @@
-// FragmentsGridView.tsx（更新的部分）
+// FragmentsGridView.tsx（移除重複滾動條設定）
 'use client'
 
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
 import TagDragPreview from './TagDragPreview'
+import { useHoverScrollbar } from '@/features/interaction/useHoverScrollbar'
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
@@ -26,8 +27,7 @@ import {
   CONTAINER_WIDTH
 } from '@/features/fragments/constants'
 import { saveFragmentPositionToSupabase } from '@/features/fragments/services/FragmentPositionService'
-
-
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 type PositionsMap = Record<string, { row: number, col: number }>;
 
@@ -35,24 +35,74 @@ type PositionsMap = Record<string, { row: number, col: number }>;
 const STORAGE_KEY_POSITIONS = 'fragment_positions';
 
 /**
- * 自由拖曳的碎片網格，支持智能布局和換行 - 徹底修復版本
+ * 自由拖曳的碎片網格，支持智能布局和優化滾動體驗
  */
 
 type FragmentsGridViewProps = {
   fragments: Fragment[];
   relevanceMap?: RelevanceMap;
-  resetLayout?: boolean; // 新增這一行
+  resetLayout?: boolean;
 }
 
 export default function FragmentsGridView({
   fragments,
   relevanceMap = {},
-  resetLayout = false // 新增這一行，並設置默認值
+  resetLayout = false
 }: FragmentsGridViewProps) {
 
-  
+  // 統一的滾動條樣式設定 - 只設定一次
+  useEffect(() => {
+    const styleId = 'fragments-grid-scrollbar-styles';
+    let styleElement = document.getElementById(styleId) as HTMLStyleElement;
+    
+    if (!styleElement) {
+      styleElement = document.createElement('style');
+      styleElement.id = styleId;
+      document.head.appendChild(styleElement);
+      
+      styleElement.textContent = `
+      .fragments-grid-container {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        transition: scrollbar-width 0.3s ease;
+      }
+      
+      .fragments-grid-container::-webkit-scrollbar {
+        width: 0px;
+      }
+      
+      .fragments-grid-container.show-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: #d1b684 #f9f6e9;
+      }
+      
+      .fragments-grid-container.show-scrollbar::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      .fragments-grid-container.show-scrollbar::-webkit-scrollbar-track {
+        background: #f9f6e9;
+        border-radius: 4px;
+      }
+      
+      .fragments-grid-container.show-scrollbar::-webkit-scrollbar-thumb {
+        background: rgb(255, 255, 255);
+        border-radius: 4px;
+        border: 1px solid #f9f6e9;
+      }
+    `;
+    }
+    
+    // 清理函數
+    return () => {
+      const element = document.getElementById(styleId);
+      if (element) {
+        element.remove();
+      }
+    };
+  }, []); // 空依賴陣列，只執行一次
+
   const isTagDraggingRef = useRef(false)
-  
   const { setSelectedFragment } = useFragmentsStore()
   const [selectedFragment, setSelectedFragmentState] = useState<Fragment | null>(null)
   const [positions, setPositions] = useState<PositionsMap>({})
@@ -61,7 +111,20 @@ export default function FragmentsGridView({
   const containerRef = useRef<HTMLDivElement>(null)
   const isInitialLoadRef = useRef(true)
 
+  const handleLogin = () => {
+  window.location.href = '/login'
+}
   
+  const [user, setUser] = useState<any>(null)
+  useEffect(() => {
+  const supabase = getSupabaseClient()
+  if (!supabase) return
+
+  supabase.auth.getUser().then(({ data }) => setUser(data.user))
+  }, [])
+  
+  // 使用 hover scrollbar hook
+  const { hovering: showScrollbar, bind: scrollbarBind } = useHoverScrollbar(30)
   
   // 使用 useMemo 創建方向映射，避免每次渲染重新計算
   const directionMap = useMemo(() => createDirectionMap(fragments), [fragments]);
@@ -71,19 +134,16 @@ export default function FragmentsGridView({
     forceUpdate({});
   }, []);
 
-  
   useEffect(() => {
-  if (resetLayout) {
-    localStorage.removeItem(STORAGE_KEY_POSITIONS);
-    setPositions({});
-    positionsRef.current = {};
-    console.log('收到重置信號，清除位置 → 將重新布局');
-  }
-}, [resetLayout]);
+    if (resetLayout) {
+      localStorage.removeItem(STORAGE_KEY_POSITIONS);
+      setPositions({});
+      positionsRef.current = {};
+      console.log('收到重置信號，清除位置 → 將重新布局');
+    }
+  }, [resetLayout]);
 
-  
-
-  // 從 localStorage 加載位置信息 - 使用 useEffect 確保只在客戶端執行
+  // 從 localStorage 加載位置信息
   useEffect(() => {
     if (!isInitialLoadRef.current) return;
     
@@ -110,17 +170,16 @@ export default function FragmentsGridView({
   )
 
   const {
-    
-  draggingTag,
-  dragPosition: tagDragPosition,
-  isDragging: isTagDragging,
-  wasDraggingRef,
-  startTagDrag,
-} = useTagDragManager()
+    draggingTag,
+    dragPosition: tagDragPosition,
+    isDragging: isTagDragging,
+    wasDraggingRef,
+    startTagDrag,
+  } = useTagDragManager()
 
   useEffect(() => {
-  isTagDraggingRef.current = isTagDragging
-}, [isTagDragging])
+    isTagDraggingRef.current = isTagDragging
+  }, [isTagDragging])
   
   // 使用改進後的 useDragFragment 處理拖曳功能
   const { 
@@ -164,18 +223,15 @@ export default function FragmentsGridView({
         return updatedPositions
       })
     }, []),
-    refreshView // 傳入強制刷新函數
+    refreshView
   );
-
-  
 
   // 處理碎片點擊
   const handleFragmentClick = useCallback((fragment: Fragment) => {
-  if (draggingId || wasDraggingRef.current) return
-  setSelectedFragmentState(fragment)
-  setSelectedFragment(fragment)
+    if (draggingId || wasDraggingRef.current) return
+    setSelectedFragmentState(fragment)
+    setSelectedFragment(fragment)
   }, [draggingId, setSelectedFragment])
-
 
   // 關閉詳情彈窗
   const handleCloseDetail = useCallback(() => {
@@ -189,7 +245,6 @@ export default function FragmentsGridView({
       let hasNew = false
 
       for (const [id, pos] of Object.entries(newPositions)) {
-        // 防止 fallback 到 (0,0) 被當作合法位置寫入
         if (!(id in prev) && !(pos.row === 0 && pos.col === 0)) {
           updated[id] = pos
           hasNew = true
@@ -210,7 +265,6 @@ export default function FragmentsGridView({
 
   // 在碎片數量變化時，確保更新位置
   useEffect(() => {
-    // 清理已刪除的碎片位置
     const existingIds = new Set(fragments.map(f => f.id))
     const positionIds = Object.keys(positionsRef.current)
     
@@ -235,9 +289,7 @@ export default function FragmentsGridView({
     if (Object.keys(positions).length > 0 && !isInitialLoadRef.current) {
       const saveToLocalStorage = () => {
         try {
-          // 確保深拷貝位置對象，避免引用問題
           const positionsToSave = JSON.parse(JSON.stringify(positions));
-          
           localStorage.setItem(STORAGE_KEY_POSITIONS, JSON.stringify(positionsToSave));
           console.log('保存位置到 localStorage - 效果更新:', Object.keys(positionsToSave).length);
         } catch (error) {
@@ -245,58 +297,109 @@ export default function FragmentsGridView({
         }
       };
       
-      // 立即保存，不使用延時
       saveToLocalStorage();
     }
   }, [positions]);
 
-      useEffect(() => {
-      const clear = () => {
-        isTagDraggingRef.current = false
+  useEffect(() => {
+    const clear = () => {
+      isTagDraggingRef.current = false
+    }
+    window.addEventListener('mouseup', clear)
+    return () => window.removeEventListener('mouseup', clear)
+  }, [])
+
+  useEffect(() => {
+    if (isTagDragging) {
+      document.body.style.cursor = 'grabbing'
+      document.body.style.userSelect = 'none'
+    } else {
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+  }, [isTagDragging])
+
+  // 智能拖曳滾動處理
+  useEffect(() => {
+    if (!draggingId || !containerRef.current) return;
+
+    const container = containerRef.current;
+    let scrollInterval: NodeJS.Timeout | null = null;
+
+    const handleDragScroll = (e: MouseEvent) => {
+      const rect = container.getBoundingClientRect();
+      const scrollThreshold = 50; // 距離邊緣多少像素開始滾動
+      const scrollSpeed = 10;
+
+      // 清除之前的滾動
+      if (scrollInterval) {
+        clearInterval(scrollInterval);
+        scrollInterval = null;
       }
-      window.addEventListener('mouseup', clear)
-      return () => window.removeEventListener('mouseup', clear)
-        }, [])
 
-        useEffect(() => {
-      if (isTagDragging) {
-        document.body.style.cursor = 'grabbing'
-        document.body.style.userSelect = 'none'
-      } else {
-        document.body.style.cursor = ''
-        document.body.style.userSelect = ''
+      // 檢查是否需要向上滾動
+      if (e.clientY - rect.top < scrollThreshold && container.scrollTop > 0) {
+        scrollInterval = setInterval(() => {
+          container.scrollTop = Math.max(0, container.scrollTop - scrollSpeed);
+        }, 16);
       }
-    }, [isTagDragging])
+      // 檢查是否需要向下滾動
+      else if (rect.bottom - e.clientY < scrollThreshold) {
+        scrollInterval = setInterval(() => {
+          const maxScroll = container.scrollHeight - container.clientHeight;
+          container.scrollTop = Math.min(maxScroll, container.scrollTop + scrollSpeed);
+        }, 16);
+      }
+    };
 
+    const stopDragScroll = () => {
+      if (scrollInterval) {
+        clearInterval(scrollInterval);
+        scrollInterval = null;
+      }
+    };
 
+    document.addEventListener('mousemove', handleDragScroll);
+    document.addEventListener('mouseup', stopDragScroll);
 
+    return () => {
+      document.removeEventListener('mousemove', handleDragScroll);
+      document.removeEventListener('mouseup', stopDragScroll);
+      if (scrollInterval) clearInterval(scrollInterval);
+    };
+  }, [draggingId]);
 
-
-
-
-  // 計算內容區域的高度和寬度
-  const { contentWidth, contentHeight } = useMemo(() => {
+  // 優化的內容區域計算
+  const { contentWidth, contentHeight, minViewportHeight } = useMemo(() => {
+    // 設定最小視窗高度
+    const minHeight = Math.max(window.innerHeight * 0.7, 600);
+    
     if (gridFragments.length === 0) {
-      return { contentWidth: CONTAINER_WIDTH, contentHeight: window.innerHeight * 0.6 };
+      return { 
+        contentWidth: CONTAINER_WIDTH, 
+        contentHeight: minHeight,
+        minViewportHeight: minHeight
+      };
     }
     
     let maxWidth = 0;
     let maxHeight = 0;
     
     gridFragments.forEach(fragment => {
-      // 計算這個碎片的邊界
-      const fragmentRight = (fragment.position.col + fragment.size.width + 1) * GRID_SIZE; // 加1確保間距
-      const fragmentBottom = (fragment.position.row + fragment.size.height + 1) * GRID_SIZE; // 加1確保間距
+      const fragmentRight = (fragment.position.col + fragment.size.width + 1) * GRID_SIZE;
+      const fragmentBottom = (fragment.position.row + fragment.size.height + 1) * GRID_SIZE;
       
       maxWidth = Math.max(maxWidth, fragmentRight);
       maxHeight = Math.max(maxHeight, fragmentBottom);
     });
     
-    // 確保內容區域高度至少為容器高度
-    const minHeight = window.innerHeight * 0.6;
+    // 動態內容高度，但確保有足夠的滾動空間
+    const dynamicHeight = Math.max(minHeight, maxHeight + 300);
+    
     return { 
-      contentWidth: Math.min(CONTAINER_WIDTH, maxWidth + 100), // 確保不超過容器寬度
-      contentHeight: Math.max(minHeight, maxHeight + 200) // 添加更多底部空間
+      contentWidth: Math.min(CONTAINER_WIDTH, maxWidth + 100),
+      contentHeight: dynamicHeight,
+      minViewportHeight: minHeight
     };
   }, [gridFragments]);
 
@@ -315,7 +418,7 @@ export default function FragmentsGridView({
         color: '#666',
         fontSize: '13px'
       }}>
-        可自由拖曳碎片，靠近其他碎片時會自動讓出空間，無效位置時會自動回到原位置
+        可自由拖曳碎片
       </div>
 
       <div style={{
@@ -337,17 +440,25 @@ export default function FragmentsGridView({
             borderRadius: '6px',
             fontSize: '13px',
             cursor: 'pointer',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+            boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+            transition: 'all 0.2s ease'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = '#c4a877';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = '#d1b684';
           }}
         >
           重新排列碎片
         </button>
       </div>
 
-      {/* 碎片網格 */}
+      {/* 簡化的碎片網格容器 - 只保留必要樣式 */}
       <div 
         ref={containerRef}
-        className="fragments-grid-container relative" 
+        className={`fragments-grid-container ${showScrollbar ? 'show-scrollbar' : ''}`}
+        {...scrollbarBind}
         style={{ 
           position: 'relative',
           background: '#f9f6e9',
@@ -355,55 +466,92 @@ export default function FragmentsGridView({
           backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`,
           width: '100%',
           maxWidth: `${CONTAINER_WIDTH}px`,
-          height: `${contentHeight}px`,
+          height: `${minViewportHeight}px`,
+          maxHeight: '80vh',
           padding: '10px',
           margin: '0 auto',
           overflowX: 'hidden',
           overflowY: 'auto'
         }}
       >
-        {gridFragments.length === 0 ? (
-          <div className="no-fragments-message" style={{
-            padding: '40px 20px',
-            textAlign: 'center',
-            color: '#aaa',
-            fontSize: '16px',
-            backgroundColor: 'rgba(255, 255, 255, 0.5)',
-            borderRadius: '8px',
-            margin: '20px 0'
-          }}>
-            暫無碎片。請使用頂部的輸入框添加新碎片。
-          </div>
-        ) : (
-          gridFragments
-          .filter(fragment => fragment.position) // 避免沒有 position 的 fragment 被渲染
-          .map(fragment => (
-            <FragmentCard
-            key={fragment.id}
-            fragment={fragment}
-            isSelected={selectedFragment?.id === fragment.id}
-            isDragging={isDragging(fragment.id)}
-            dragPosition={dragPosition}
-            isValidDragTarget={isValidDragTarget}
-            previewPosition={previewRelocations[fragment.id]}
-            validationState={draggingId === fragment.id ? validationState : 'valid'} 
-            onFragmentClick={handleFragmentClick}
-            onDragStart={handleDragStart}
-            onTagClick={(tag, frag) => {
-              console.log('🟡 點擊標籤:', tag, '來自 fragment:', frag.id)
-              // TODO: 加入篩選、跳轉或其他互動
-            }}
-           onTagDragStart={(e, tag, frag) => {
-            e.preventDefault()
-            e.stopPropagation()
-            startTagDrag(tag, e)
-          
-            console.log('🟠 開始拖曳標籤:', tag, '來自 fragment:', frag.id)
+        <div 
+          className="grid-content"
+          style={{
+            position: 'relative',
+            minHeight: `${contentHeight}px`,
+            width: '100%'
           }}
-
-          />
-          ))
-        )}
+        >
+          {gridFragments.length === 0 ? (
+          <div
+          className="no-fragments-message"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px 20px',
+            color: '#8a7b5a',
+            fontSize: '16px',
+            backgroundColor: 'rgba(255, 252, 245, 0.85)',
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            backdropFilter: 'blur(5px)',
+            maxWidth: '300px',
+            textAlign: 'center'
+          }}
+        >
+          {!user ? (
+            <>
+              <div style={{ marginBottom: '16px' }}>請先登入以查看碎片</div>
+              <button
+                onClick={handleLogin}
+                className="flex items-center justify-center w-10 h-10 rounded-full border border-[#d1b684] bg-[#f9f6e9] hover:shadow-lg transition"
+                title="使用 Google 登入"
+              >
+                <img
+                  src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                  alt="Google G"
+                  className="w-5 h-5"
+                />
+              </button>
+            </>
+          ) : (
+            <>暫無碎片。請使用頂部的輸入框添加新碎片。</>
+          )}
+        </div>
+        ) : (
+  gridFragments
+    .filter(fragment => fragment.position)
+    .map(fragment => (
+      <FragmentCard
+        key={fragment.id}
+        fragment={fragment}
+        isSelected={selectedFragment?.id === fragment.id}
+        isDragging={isDragging(fragment.id)}
+        dragPosition={dragPosition}
+        isValidDragTarget={isValidDragTarget}
+        previewPosition={previewRelocations[fragment.id]}
+        validationState={draggingId === fragment.id ? validationState : 'valid'}
+        onFragmentClick={handleFragmentClick}
+        onDragStart={handleDragStart}
+        onTagClick={(tag, frag) => {
+          console.log('🟡 點擊標籤:', tag, '來自 fragment:', frag.id)
+        }}
+        onTagDragStart={(e, tag, frag) => {
+          e.preventDefault()
+          e.stopPropagation()
+          startTagDrag(tag, e)
+          console.log('🟠 開始拖曳標籤:', tag, '來自 fragment:', frag.id)
+        }}
+      />
+    ))
+)}
+        </div>
          
         {/* 詳情彈窗 */}
         <FragmentDetailModal 
@@ -411,6 +559,7 @@ export default function FragmentsGridView({
           onClose={handleCloseDetail} 
         />
 
+        {/* 標籤拖曳預覽 */}
         {isTagDragging && draggingTag && tagDragPosition && (
           <TagDragPreview tag={draggingTag} position={tagDragPosition} />
         )}
