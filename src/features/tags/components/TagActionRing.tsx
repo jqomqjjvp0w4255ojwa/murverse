@@ -180,11 +180,11 @@ const TagActionRing: React.FC<TagActionRingProps> = ({
   }, [options, selectedIndex, isRemovingFromThisFragment, onClose])
 
   // 當從當前碎片中移除標籤
-  const handleRemoveFromThisFragment = () => {
+  const handleRemoveFromThisFragment = async () => {
     if (!fragmentId) return
     
     // 從當前碎片中移除標籤
-    const result = TagsService.removeTagFromFragment(fragmentId, tag)
+    const result = await TagsService.removeTagFromFragment(fragmentId, tag)
     console.log(`✂️ ${result.message || '已從當前碎片移除標籤'}`)
     onClose()
   }

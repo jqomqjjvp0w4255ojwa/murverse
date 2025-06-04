@@ -3,6 +3,7 @@
 
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { MockAuthService } from '@/lib/mockAuthService'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface User {
   id: string
@@ -10,42 +11,56 @@ export interface User {
   name?: string
 }
 
-/**
- * 統一的認證輔助函數
- * 開發模式使用模擬用戶，生產模式使用真實認證
- */
 export class AuthHelper {
   /**
-   * 獲取當前用戶
-   * 開發模式返回模擬用戶，生產模式使用 Supabase 認證
+   * 檢查是否為開發模式且使用模擬認證
    */
-    static async getCurrentUser(): Promise<User | null> {
+  private static shouldUseMockAuth(): boolean {
+    return process.env.NODE_ENV === 'development' && 
+           process.env.NEXT_PUBLIC_USE_MOCK_AUTH !== 'false'
+  }
+
+  /**
+   * 安全獲取 Supabase 客戶端
+   */
+  private static getSupabaseClientSafe(): SupabaseClient | null {
+    if (this.shouldUseMockAuth()) {
+      return null // 開發模式不需要 Supabase
+    }
+    
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      console.error('❌ Supabase client not available in production mode')
+    }
+    return supabase
+  }
+
+  /**
+   * 獲取當前用戶
+   */
+  static async getCurrentUser(): Promise<User | null> {
     try {
       // 開發模式：使用模擬用戶
-      if (MockAuthService.isDevelopmentMode()) {
+      if (this.shouldUseMockAuth()) {
+        console.log('🔧 [DEV MODE] Using mock authentication')
         const mockUser = await MockAuthService.getCurrentUser()
-        if (mockUser) {
-          console.log('🔧 [DEV] 使用模擬用戶:', mockUser.id)
-          return {
-            id: mockUser.id,
-            email: mockUser.email,
-            name: mockUser.name
-          }
-        }
-        return null
+        return mockUser ? {
+          id: mockUser.id,
+          email: mockUser.email,
+          name: mockUser.name
+        } : null
       }
 
       // 生產模式：使用真實 Supabase 認證
-      const supabase = getSupabaseClient()
+      const supabase = this.getSupabaseClientSafe()
       if (!supabase) {
-        console.error('Supabase client not available')
         return null
       }
 
       const { data: { user }, error } = await supabase.auth.getUser()
       
       if (error) {
-        console.error('認證錯誤:', error)
+        console.error('❌ Auth error:', error.message)
         return null
       }
       
@@ -54,8 +69,9 @@ export class AuthHelper {
         email: user.email,
         name: user.user_metadata?.name
       } : null
+
     } catch (error) {
-      console.error('AuthHelper.getCurrentUser 失敗:', error)
+      console.error('❌ Failed to get current user:', error)
       return null
     }
   }
@@ -83,6 +99,7 @@ export class AuthHelper {
     if (MockAuthService.isDevelopmentMode()) {
       return MockAuthService.getDevUserId()
     }
+    console.warn('⚠️ getUserIdSync only works in development mode')
     return null
   }
 
@@ -90,24 +107,26 @@ export class AuthHelper {
    * 登入
    */
   static async login(email: string, password: string): Promise<User | null> {
-    if (MockAuthService.isDevelopmentMode()) {
-      return await MockAuthService.login(email, password)
-    }
-
-    const supabase = getSupabaseClient()
-    if (!supabase) {
-      console.error('Supabase client not available')
-      return null
-    }
-
     try {
+      // 開發模式
+      if (MockAuthService.isDevelopmentMode()) {
+        console.log('🔧 [DEV MODE] Mock login for:', email)
+        return await MockAuthService.login(email, password)
+      }
+
+      // 生產模式
+      const supabase = this.getSupabaseClientSafe()
+      if (!supabase) {
+        return null
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       })
 
       if (error) {
-        console.error('登入失敗:', error)
+        console.error('❌ Login failed:', error.message)
         return null
       }
 
@@ -116,8 +135,9 @@ export class AuthHelper {
         email: data.user.email,
         name: data.user.user_metadata?.name
       } : null
+
     } catch (error) {
-      console.error('登入過程出錯:', error)
+      console.error('❌ Login process failed:', error)
       return null
     }
   }
@@ -125,25 +145,32 @@ export class AuthHelper {
   /**
    * 登出
    */
-  static async logout(): Promise<void> {
-    if (MockAuthService.isDevelopmentMode()) {
-      await MockAuthService.logout()
-      return
-    }
-
-    const supabase = getSupabaseClient()
-    if (!supabase) {
-      console.error('Supabase client not available')
-      return
-    }
-
+  static async logout(): Promise<boolean> {
     try {
+      // 開發模式
+      if (MockAuthService.isDevelopmentMode()) {
+        console.log('🔧 [DEV MODE] Mock logout')
+        await MockAuthService.logout()
+        return true
+      }
+
+      // 生產模式
+      const supabase = this.getSupabaseClientSafe()
+      if (!supabase) {
+        return false
+      }
+
       const { error } = await supabase.auth.signOut()
       if (error) {
-        console.error('登出失敗:', error)
+        console.error('❌ Logout failed:', error.message)
+        return false
       }
+
+      return true
+
     } catch (error) {
-      console.error('登出過程出錯:', error)
+      console.error('❌ Logout process failed:', error)
+      return false
     }
   }
 }

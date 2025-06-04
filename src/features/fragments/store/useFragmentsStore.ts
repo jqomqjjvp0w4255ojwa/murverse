@@ -8,11 +8,7 @@ import { ParsedSearch, SearchToken } from '@/features/search/useAdvancedSearch'
 import { matchText, matchFragment, matchesSearchToken } from '@/features/search/searchHelpers'
 import { isDateInRange } from '@/features/fragments/utils'
 import { SORT_FIELDS, SORT_ORDERS } from '@/features/fragments/constants'
-import { addNote } from '@/features/fragments/services/SupabaseNotesRepository'
-import {
-  addTagToFragment as addTagRemote,
-  removeTagFromFragment as removeTagRemote
-} from '@/features/fragments/services/SupabaseTagsRepository'
+
 
 // 使用常量來定義排序方式
 type SortField = typeof SORT_FIELDS[keyof typeof SORT_FIELDS]
@@ -241,23 +237,27 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
    * 添加筆記到碎片
    */
     addNoteToFragment: async (fragmentId, note) => {
-    const updatedAt = new Date().toISOString()
-
-    // 更新 Zustand 狀態
-    set(state => ({
-      fragments: state.fragments.map(f =>
-        f.id === fragmentId
-          ? {
-              ...f,
-              notes: [...f.notes, note],
-              updatedAt
-            }
-          : f
-      )
-    }))
-
-    // 同步寫入 Supabase
-    await addNote(fragmentId, note)
+    try {
+      const success = await apiClient.addNoteToFragment(fragmentId, note)
+      
+      if (success) {
+        const updatedAt = new Date().toISOString()
+        
+        set(state => ({
+          fragments: state.fragments.map(f =>
+            f.id === fragmentId
+              ? {
+                  ...f,
+                  notes: [...f.notes, note],
+                  updatedAt
+                }
+              : f
+          )
+        }))
+      }
+    } catch (error) {
+      console.error('Failed to add note to fragment:', error)
+    }
   },
 
   /**
@@ -338,37 +338,49 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
    * 添加標籤到碎片
    */
    addTagToFragment: async (fragmentId, tag) => {
-  set(state => ({
-    fragments: state.fragments.map(f =>
-      f.id === fragmentId && !f.tags.includes(tag)
-        ? {
-            ...f,
-            tags: [...f.tags, tag],
-            updatedAt: new Date().toISOString()
-          }
-        : f
-    )
-  }))
-
-  await addTagRemote(fragmentId, tag)
+    try {
+      const success = await apiClient.addTagToFragment(fragmentId, tag)
+      
+      if (success) {
+        set(state => ({
+          fragments: state.fragments.map(f =>
+            f.id === fragmentId && !f.tags.includes(tag)
+              ? {
+                  ...f,
+                  tags: [...f.tags, tag],
+                  updatedAt: new Date().toISOString()
+                }
+              : f
+          )
+        }))
+      }
+    } catch (error) {
+      console.error('Failed to add tag to fragment:', error)
+    }
   },
 
   /**
    * 從碎片移除標籤
    */
   removeTagFromFragment: async (fragmentId, tag) => {
-  set(state => ({
-    fragments: state.fragments.map(f =>
-      f.id === fragmentId
-        ? {
-            ...f,
-            tags: f.tags.filter(t => t !== tag),
-            updatedAt: new Date().toISOString()
-          }
-        : f
-    )
-  }))
-
-  await removeTagRemote(fragmentId, tag)
-},
+    try {
+      const success = await apiClient.removeTagFromFragment(fragmentId, tag)
+      
+      if (success) {
+        set(state => ({
+          fragments: state.fragments.map(f =>
+            f.id === fragmentId
+              ? {
+                  ...f,
+                  tags: f.tags.filter(t => t !== tag),
+                  updatedAt: new Date().toISOString()
+                }
+              : f
+          )
+        }))
+      }
+    } catch (error) {
+      console.error('Failed to remove tag from fragment:', error)
+    }
+  },
 }))

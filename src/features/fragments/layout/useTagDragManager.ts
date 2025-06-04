@@ -89,12 +89,12 @@ export function useTagDragManager() {
       }
     }
 
-    const handleMouseUp = () => {
+    const handleMouseUp = async () => {
       if (isDraggingRef.current) {
         // 檢查是否放置在碎片上
         if (dragOverFragmentRef.current && draggingTag) {
           // 添加標籤到目標碎片
-          const result = TagsService.addTagToFragment(dragOverFragmentRef.current, draggingTag)
+          const result = await TagsService.addTagToFragment(dragOverFragmentRef.current, draggingTag)
           
           // 顯示操作結果提示（可以用 toast 之類的通知）
           if (result.success) {

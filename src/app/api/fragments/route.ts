@@ -1,15 +1,54 @@
+// app/api/fragments/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createServerSupabaseClient, createDevServerSupabaseClient } from '@/lib/supabase/server'
 
-// 取得用戶 ID (暫時使用開發模式的固定 ID)
-function getUserId(): string {
-  return 'dev-user-12345'
+// 統一的用戶 ID 獲取邏輯
+async function getUserId(request: NextRequest): Promise<string | null> {
+  // 開發模式：使用固定 ID
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔧 [DEV MODE] Using fixed user ID for API')
+    return 'dev-user-12345'
+  }
+
+  // 生產模式：真實認證
+  try {
+    const supabase = createServerSupabaseClient()
+    
+    // 嘗試從 cookies 獲取 session
+    const { data: { user }, error } = await supabase.auth.getUser()
+    
+    if (error || !user) {
+      console.error('❌ Authentication failed:', error?.message)
+      return null
+    }
+    
+    return user.id
+  } catch (error) {
+    console.error('❌ Auth error:', error)
+    return null
+  }
+}
+
+// 獲取適當的 Supabase client
+function getSupabaseClient() {
+  return process.env.NODE_ENV === 'development' 
+    ? createDevServerSupabaseClient()
+    : createServerSupabaseClient()
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserId()
-    const supabase = createServerSupabaseClient()
+    const userId = await getUserId(request)
+    
+    if (!userId) {
+      return NextResponse.json({ 
+        error: process.env.NODE_ENV === 'development' 
+          ? 'Development mode auth failed' 
+          : 'Unauthorized' 
+      }, { status: 401 })
+    }
+    
+    const supabase = getSupabaseClient()
     
     const { data: fragments, error } = await supabase
       .from('fragments')
@@ -47,14 +86,23 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserId()
+    const userId = await getUserId(request)
+    
+    if (!userId) {
+      return NextResponse.json({ 
+        error: process.env.NODE_ENV === 'development' 
+          ? 'Development mode auth failed' 
+          : 'Unauthorized' 
+      }, { status: 401 })
+    }
+    
     const { content, tags, notes, type = 'fragment' } = await request.json()
     
     if (!content?.trim()) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
-    const supabase = createServerSupabaseClient()
+    const supabase = getSupabaseClient()
     const now = new Date().toISOString()
     const fragmentId = crypto.randomUUID()
 
@@ -101,6 +149,9 @@ export async function POST(request: NextRequest) {
       await supabase.from('notes').insert(noteInserts)
     }
 
+
+    
+
     return NextResponse.json({ 
       success: true, 
       fragment: {
@@ -118,3 +169,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
+
