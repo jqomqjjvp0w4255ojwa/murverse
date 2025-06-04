@@ -35,15 +35,13 @@ export class AuthHelper {
     }
 
     // 生產模式：使用真實 Supabase 認證
-    try {
-      const supabase = getSupabaseClient()
-      
-      if (!supabase) {
-        console.error('Supabase client not available')
-        return null
-      }
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      console.error('Supabase client not available')
+      return null
+    }
 
-      // 修復：添加實際的 API 調用
+    try {
       const { data: { user }, error } = await supabase.auth.getUser()
       
       if (error) {
@@ -96,29 +94,32 @@ export class AuthHelper {
       return await MockAuthService.login(email, password)
     }
 
-    // 修復：先獲取 supabase 客戶端
     const supabase = getSupabaseClient()
     if (!supabase) {
       console.error('Supabase client not available')
       return null
     }
 
-    // 真實登入邏輯
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
 
-    if (error) {
-      console.error('登入失敗:', error)
+      if (error) {
+        console.error('登入失敗:', error)
+        return null
+      }
+
+      return data.user ? {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.name
+      } : null
+    } catch (error) {
+      console.error('登入過程出錯:', error)
       return null
     }
-
-    return data.user ? {
-      id: data.user.id,
-      email: data.user.email,
-      name: data.user.user_metadata?.name
-    } : null
   }
 
   /**
@@ -130,17 +131,19 @@ export class AuthHelper {
       return
     }
 
-    // 修復：先獲取 supabase 客戶端
     const supabase = getSupabaseClient()
     if (!supabase) {
       console.error('Supabase client not available')
       return
     }
 
-    // 真實登出邏輯
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error('登出失敗:', error)
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('登出失敗:', error)
+      }
+    } catch (error) {
+      console.error('登出過程出錯:', error)
     }
   }
 }
