@@ -22,4 +22,6 @@ export function getSupabaseClient() {
 }
 
 // 向後兼容的導出
-export const supabase = getSupabaseClient()
+export function getSupabase() {
+  return getSupabaseClient()
+}

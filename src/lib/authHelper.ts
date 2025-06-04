@@ -19,29 +19,29 @@ export class AuthHelper {
    * 獲取當前用戶
    * 開發模式返回模擬用戶，生產模式使用 Supabase 認證
    */
-  static async getCurrentUser(): Promise<User | null> {
-    // 開發模式：使用模擬用戶
-    if (MockAuthService.isDevelopmentMode()) {
-      const mockUser = await MockAuthService.getCurrentUser()
-      if (mockUser) {
-        console.log('🔧 [DEV] 使用模擬用戶:', mockUser.id)
-        return {
-          id: mockUser.id,
-          email: mockUser.email,
-          name: mockUser.name
-        }
-      }
-      return null
-    }
-
-    // 生產模式：使用真實 Supabase 認證
-    const supabase = getSupabaseClient()
-    if (!supabase) {
-      console.error('Supabase client not available')
-      return null
-    }
-
+    static async getCurrentUser(): Promise<User | null> {
     try {
+      // 開發模式：使用模擬用戶
+      if (MockAuthService.isDevelopmentMode()) {
+        const mockUser = await MockAuthService.getCurrentUser()
+        if (mockUser) {
+          console.log('🔧 [DEV] 使用模擬用戶:', mockUser.id)
+          return {
+            id: mockUser.id,
+            email: mockUser.email,
+            name: mockUser.name
+          }
+        }
+        return null
+      }
+
+      // 生產模式：使用真實 Supabase 認證
+      const supabase = getSupabaseClient()
+      if (!supabase) {
+        console.error('Supabase client not available')
+        return null
+      }
+
       const { data: { user }, error } = await supabase.auth.getUser()
       
       if (error) {
@@ -55,7 +55,7 @@ export class AuthHelper {
         name: user.user_metadata?.name
       } : null
     } catch (error) {
-      console.error('獲取用戶失敗:', error)
+      console.error('AuthHelper.getCurrentUser 失敗:', error)
       return null
     }
   }

@@ -56,7 +56,7 @@ export class MockAuthService {
    * 設置開發模式標記
    */
   static isDevelopmentMode(): boolean {
-    return process.env.NODE_ENV === 'development' || process.env.NODE_ENV !== 'production'
+    return process.env.NODE_ENV === 'development'
   }
 
   /**
