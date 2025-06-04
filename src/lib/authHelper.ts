@@ -1,7 +1,7 @@
 // lib/authHelper.ts
 'use client'
 
-import { supabase } from '@/lib/supabase/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { MockAuthService } from '@/lib/mockAuthService'
 
 export interface User {
@@ -36,11 +36,21 @@ export class AuthHelper {
 
     // 生產模式：使用真實 Supabase 認證
     try {
+      const supabase = getSupabaseClient()
+      
+      if (!supabase) {
+        console.error('Supabase client not available')
+        return null
+      }
+
+      // 修復：添加實際的 API 調用
       const { data: { user }, error } = await supabase.auth.getUser()
+      
       if (error) {
         console.error('認證錯誤:', error)
         return null
       }
+      
       return user ? {
         id: user.id,
         email: user.email,
@@ -86,7 +96,14 @@ export class AuthHelper {
       return await MockAuthService.login(email, password)
     }
 
-    // 真實登入邏輯（之後實作）
+    // 修復：先獲取 supabase 客戶端
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      console.error('Supabase client not available')
+      return null
+    }
+
+    // 真實登入邏輯
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password
@@ -110,6 +127,13 @@ export class AuthHelper {
   static async logout(): Promise<void> {
     if (MockAuthService.isDevelopmentMode()) {
       await MockAuthService.logout()
+      return
+    }
+
+    // 修復：先獲取 supabase 客戶端
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      console.error('Supabase client not available')
       return
     }
 

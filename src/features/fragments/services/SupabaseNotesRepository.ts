@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/supabase/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { Note } from '@/features/fragments/types/fragment'
 
 const TABLE = 'notes'

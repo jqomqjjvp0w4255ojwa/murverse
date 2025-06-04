@@ -14,14 +14,14 @@
 import { create } from 'zustand'
 import { createRef, RefObject } from 'react'
 import { persist } from 'zustand/middleware'
-// import {
-//   loadGlobalTags,
-//   saveGlobalTag,
-//   deleteGlobalTags,
-//   renameGlobalTag,
-//   loadRecentTags,
-//   saveRecentTags
-// } from '@/features/tags/services/SupabaseTagsService'
+import {
+  loadGlobalTags,
+  saveGlobalTag,
+  deleteGlobalTags,
+  renameGlobalTag,
+  loadRecentTags,
+  saveRecentTags
+} from '@/features/tags/services/SupabaseTagsService'
 type TagMode = 'search' | 'add'
 
 interface TagInfo {
@@ -88,15 +88,13 @@ export const useGlobalTagsStore = create<TagsStoreState>()(
       fragments.forEach(f => f.tags.forEach((t: string) => map.set(t, (map.get(t) || 0) + 1)))
 
       // 從 Supabase 讀 globalTags
-      // const remote = await loadGlobalTags()
-      const remote: { name: string; count: number }[] = [] // 暫時使用空陣列
+      const remote = await loadGlobalTags()
       remote.forEach(({ name, count }) => map.set(name, Math.max(map.get(name) || 0, count)))
 
       set({ globalTags: [...map.entries()].map(([name, count]) => ({ name, count })) })
 
       // 讀最近標籤
-      // const recentTags = await loadRecentTags()
-        const recentTags: string[] = [] // 暫時使用空陣列
+      const recentTags = await loadRecentTags()
       set({ recentlyUsedTags: recentTags })
       },
       
@@ -107,8 +105,7 @@ export const useGlobalTagsStore = create<TagsStoreState>()(
       const exists = get().globalTags.some(t => t.name === trimmedTag)
       if (exists) return
 
-      // await saveGlobalTag(trimmedTag)
-      console.log('Tag saved locally, API sync to be implemented')
+      await saveGlobalTag(trimmedTag)
 
       set(state => ({
         globalTags: [...state.globalTags, { name: trimmedTag, count: 0 }]
@@ -118,8 +115,7 @@ export const useGlobalTagsStore = create<TagsStoreState>()(
       removeGlobalTags: async (tagNames) => {
       if (tagNames.length === 0) return
 
-      // await renameGlobalTag(oldName, newName)
-      console.log('Tag renamed locally, API sync to be implemented')
+      await deleteGlobalTags(tagNames)
 
       set(state => ({
         globalTags: state.globalTags.filter(tag => !tagNames.includes(tag.name))
@@ -133,8 +129,7 @@ export const useGlobalTagsStore = create<TagsStoreState>()(
       const exists = get().globalTags.some(tag => tag.name === newName)
       if (exists) return
 
-      // await renameGlobalTag(oldName, newName)
-      console.log('Tag renamed locally, API sync to be implemented')
+      await renameGlobalTag(oldName, newName)
 
       set(state => ({
         globalTags: state.globalTags.map(tag =>
@@ -147,8 +142,7 @@ export const useGlobalTagsStore = create<TagsStoreState>()(
       const prev = get().recentlyUsedTags.filter(t => t !== tagName)
       const newList = [tagName, ...prev].slice(0, 50)
 
-      // await saveRecentTags(newList)
-      console.log('Tag usage recorded locally, API sync to be implemented')
+      await saveRecentTags(newList)
 
       set({ recentlyUsedTags: newList })
     },

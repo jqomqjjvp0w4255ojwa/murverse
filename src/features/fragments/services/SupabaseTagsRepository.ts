@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/supabase/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 const TABLE = 'fragment_tags'
 
@@ -19,7 +19,7 @@ export async function getTagsByFragmentId(fragmentId: string): Promise<string[]>
     return []
   }
 
-  return data.map(d => d.tag)
+  return data.map((d: { tag: string }) => d.tag)
 }
 
 export async function addTagToFragment(fragmentId: string, tag: string) {

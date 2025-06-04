@@ -2,18 +2,44 @@
 
 import { Fragment } from '@/features/fragments/types/fragment'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
-//import { supabase } from '@/lib/supabase/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 async function loadTagsFromSupabase(userId: string, type: 'global' | 'recent'): Promise<string[]> {
-  // 暫時禁用 Supabase 功能
-  console.log(`TODO: Load ${type} tags for user ${userId}`)
-  return []
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.error('Supabase client not available')
+    return []
+  }
+  const { data, error } = await supabase
+    .from('user_tags')
+    .select('tags')
+    .eq('user_id', userId)
+    .eq('type', type)
+    .single()
+
+  if (error) {
+    console.error(`讀取 ${type} tags 失敗`, error)
+    return []
+  }
+
+  return data?.tags || []
 }
 
 // 儲存標籤資料（全域或最近）
 async function saveTagsToSupabase(userId: string, type: 'global' | 'recent', tags: string[]) {
-  // 暫時禁用 Supabase 功能
-  console.log(`TODO: Save ${type} tags for user ${userId}`, tags)
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.error('Supabase client not available')
+    return
+  }
+  
+  const { error } = await supabase
+    .from('user_tags')
+    .upsert([{ user_id: userId, type, tags }])
+
+  if (error) {
+    console.error(`儲存 ${type} tags 失敗`, error)
+  }
 }
 
 /**
@@ -57,26 +83,66 @@ export class TagsService {
    * 從 Supabase 加載全域標籤
    */
   static async loadGlobalTags(): Promise<string[]> {
-  // 暫時使用固定用戶 ID
-  const user = { id: 'dev-user-12345' }
-  return await loadTagsFromSupabase(user.id, 'global')
-}
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      console.error('Supabase client not available')
+      return []
+    }
+
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      console.error('無法取得使用者資料')
+      return []
+    }
+    return await loadTagsFromSupabase(user.id, 'global')
+  }
+
   static async saveGlobalTags(tags: string[]): Promise<void> {
-    const user = { id: 'dev-user-12345' }
-      return await saveTagsToSupabase(user.id, 'global', tags)
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+      console.error('Supabase client not available')
+      return  // ✅ 正確：void 函數直接 return
+    }
+
+const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      console.error('無法取得使用者資料')
+      return
+    }
+    await saveTagsToSupabase(user.id, 'global', tags)
   }
 
   /**
    * 從 Supabase 加載最近使用的標籤
    */
   static async loadRecentTags(): Promise<string[]> {
-    const user = { id: 'dev-user-12345' }
-      return await loadTagsFromSupabase(user.id, 'recent')
+    const supabase = getSupabaseClient()
+if (!supabase) {
+  console.error('Supabase client not available')
+  return []
+}
+
+const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      console.error('無法取得使用者資料')
+      return []
+    }
+    return await loadTagsFromSupabase(user.id, 'recent')
   }
 
   static async saveRecentTags(tags: string[]): Promise<void> {
-    const user = { id: 'dev-user-12345' }
-      return await saveTagsToSupabase(user.id, 'recent', tags)
+    const supabase = getSupabaseClient()
+    if (!supabase) {
+    console.error('Supabase client not available')
+     return  // ✅ 正確
+}
+
+const { data: { user }, error } = await supabase.auth.getUser()
+    if (error || !user) {
+      console.error('無法取得使用者資料')
+      return
+    }
+    await saveTagsToSupabase(user.id, 'recent', tags)
   }
 
   /**

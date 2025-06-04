@@ -8,6 +8,11 @@ import { ParsedSearch, SearchToken } from '@/features/search/useAdvancedSearch'
 import { matchText, matchFragment, matchesSearchToken } from '@/features/search/searchHelpers'
 import { isDateInRange } from '@/features/fragments/utils'
 import { SORT_FIELDS, SORT_ORDERS } from '@/features/fragments/constants'
+import { addNote } from '@/features/fragments/services/SupabaseNotesRepository'
+import {
+  addTagToFragment as addTagRemote,
+  removeTagFromFragment as removeTagRemote
+} from '@/features/fragments/services/SupabaseTagsRepository'
 
 // 使用常量來定義排序方式
 type SortField = typeof SORT_FIELDS[keyof typeof SORT_FIELDS]
@@ -235,25 +240,25 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   /**
    * 添加筆記到碎片
    */
-   addNoteToFragment: async (fragmentId, note) => {
-  const updatedAt = new Date().toISOString()
+    addNoteToFragment: async (fragmentId, note) => {
+    const updatedAt = new Date().toISOString()
 
-  // 更新 Zustand 狀態
-  set(state => ({
-    fragments: state.fragments.map(f =>
-      f.id === fragmentId
-        ? {
-            ...f,
-            notes: [...f.notes, note],
-            updatedAt
-          }
-        : f
-    )
-  }))
+    // 更新 Zustand 狀態
+    set(state => ({
+      fragments: state.fragments.map(f =>
+        f.id === fragmentId
+          ? {
+              ...f,
+              notes: [...f.notes, note],
+              updatedAt
+            }
+          : f
+      )
+    }))
 
-  // TODO: 稍後實作 API 呼叫來同步到資料庫
-  console.log('Note added locally, API sync to be implemented')
-},
+    // 同步寫入 Supabase
+    await addNote(fragmentId, note)
+  },
 
   /**
    * 更新碎片中的筆記
@@ -345,7 +350,7 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     )
   }))
 
-  console.log('Tag added locally, API sync to be implemented')
+  await addTagRemote(fragmentId, tag)
   },
 
   /**
@@ -364,6 +369,6 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     )
   }))
 
-  console.log('Tag removed locally, API sync to be implemented')
+  await removeTagRemote(fragmentId, tag)
 },
 }))

@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/supabase/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { AuthHelper } from '@/lib/authHelper'
 
 export async function loadGlobalTags(): Promise<{ name: string, count: number }[]> {

@@ -1,4 +1,4 @@
-import { getSupabaseClient } from '@/lib/supabase/supabaseClient'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { Fragment } from '@/features/fragments/types/fragment'
 import { AuthHelper } from '@/lib/authHelper'
 import { getNotesByFragmentId } from './SupabaseNotesRepository'
@@ -37,7 +37,7 @@ export async function loadFragments(): Promise<Fragment[]> {
 
   // 為每個 fragment 載入相關的 notes 和 tags
   const fragmentsWithRelations = await Promise.all(
-    data.map(async (fragmentData) => {
+    data.map(async (fragmentData: any) => {
       const [notes, tags] = await Promise.all([
         getNotesByFragmentId(fragmentData.id),
         getTagsByFragmentId(fragmentData.id)
