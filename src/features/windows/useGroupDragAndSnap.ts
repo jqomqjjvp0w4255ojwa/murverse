@@ -14,13 +14,17 @@ interface Position {
  * @param {React.RefObject<HTMLDivElement>} ref - 窗口DOM引用
  * @returns {Object} - 位置狀態和控制方法
  */
-export function useGroupDragAndSnap(id: string, ref: React.RefObject<HTMLDivElement>): {
+export function useGroupDragAndSnap(
+  id: string, 
+  ref: React.RefObject<HTMLDivElement>,
+  initialPosition?: Position
+  ): {
   pos: Position;
   startDrag: (e: React.MouseEvent | MouseEvent) => void;
   isDragging: boolean;
   setPos: React.Dispatch<React.SetStateAction<Position>>;
 } {
-  const [pos, setPos] = useState<Position>({ x: 100, y: 100 })
+  const [pos, setPos] = useState<Position>(initialPosition || { x: 100, y: 100 })
   const [isDragging, setIsDragging] = useState(false)
   const dragOffset = useRef<Position>({ x: 0, y: 0 })
   const isDraggingRef = useRef(false)

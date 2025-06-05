@@ -63,6 +63,7 @@ export default function FloatingInputBar() {
   const { hovering: hoverScrollbarArea, bind: scrollbarHoverHandlers } = useHoverScrollbar(20)
   const [isScaling, setIsScaling] = useState(false)
   const [transformOrigin, setTransformOrigin] = useState('center center')
+  const hasDraft = content.trim() || pendingTags.length > 0 || notes.some(note => note.title.trim() || note.value.trim());
 
   
   const [isExiting, setIsExiting] = useState(false)
@@ -463,10 +464,18 @@ const handleToggleFullScreen = () => {
                     style={{ width: '1.4vh', height: '1.4vh', marginBottom: '0.2vh' }}
                     className="group-hover:text-red-500 transition-colors duration-200" // 加上懸浮變色效果
                   >
+                    {hasDraft ? (
+                      // 筆的圖示
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
+                        <path d="m18 2 4 4-14 14H4v-4L18 2z"/>
+                        <path d="M14.5 5.5 18.5 9.5"/>
+                      </svg>
+                    ) : (
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
                       <line x1="12" y1="5" x2="12" y2="19" />
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
+                    )}
                   </div>
                   <span
                     style={{ fontSize: '0.9vh' }}
@@ -580,18 +589,26 @@ return (
          <div className="absolute inset-0 flex flex-col items-center justify-center transition-colors duration-200" 
               style={{ color: (isTabExpanded || expanded) ? '#1e2a38' : '#999999' }}>
            <div 
-             style={{
-               width: '1.4vh',
-               height: '1.4vh',
-               marginBottom: '0.2vh'
-             }}
-
+            style={{
+              width: '1.4vh',
+              height: '1.4vh',
+              marginBottom: '0.2vh'
+            }}
             className="group-hover:text-red-500 transition-colors duration-200">
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
-               <line x1="12" y1="5" x2="12" y2="19"></line>
-               <line x1="5" y1="12" x2="19" y2="12"></line>
-             </svg>
-           </div>
+            {hasDraft ? (
+              // 筆的圖示
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
+                <path d="m18 2 4 4-14 14H4v-4L18 2z"/>
+                <path d="M14.5 5.5 18.5 9.5"/>
+              </svg>
+            ) : (
+              // 原本的 + 號
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="w-full h-full">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            )}
+          </div>
            <span 
             style={{ fontSize: '0.9vh' }}
             className="group-hover:text-red-500 transition-colors duration-200">

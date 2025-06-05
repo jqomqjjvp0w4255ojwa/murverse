@@ -87,7 +87,7 @@ export interface FragmentSearchOptions {
 }
 
 /**
- * 片段主結構定義
+ * 片段主結構定義（前端使用）
  */
 export interface Fragment {
   id: string;                   // 唯一識別碼
@@ -112,6 +112,53 @@ export interface Fragment {
   showContent?: boolean;         // 是否顯示主內容
   showNote?: boolean;            // 是否顯示筆記
   showTags?: boolean;            // 是否顯示標籤
+}
+
+/**
+ * 資料庫中的 Fragment 結構（包含 user_id）
+ */
+export interface DbFragment {
+  id: string;
+  content: string;
+  type: FragmentType;
+  user_id: string;              // 資料庫中的用戶 ID
+  sortOrder?: number;
+  createdAt: string;
+  updatedAt: string;
+  meta?: FragmentMeta;
+  parentId?: string;
+  version?: number;
+  status?: 'draft' | 'published' | 'archived';
+  
+  // UI 相關欄位
+  direction?: FragmentDirection;
+  showContent?: boolean;
+  showNote?: boolean;
+  showTags?: boolean;
+}
+
+/**
+ * 從資料庫 Fragment 轉換為前端 Fragment
+ */
+export function dbFragmentToFragment(dbFragment: DbFragment, notes: Note[] = [], tags: string[] = []): Fragment {
+  const { user_id, ...fragmentData } = dbFragment
+  return {
+    ...fragmentData,
+    notes,
+    tags,
+    relations: []
+  }
+}
+
+/**
+ * 從前端 Fragment 轉換為資料庫 Fragment
+ */
+export function fragmentToDbFragment(fragment: Fragment, userId: string): Omit<DbFragment, 'user_id'> & { user_id: string } {
+  const { notes, tags, relations, creator, lastEditor, childIds, ...dbData } = fragment
+  return {
+    ...dbData,
+    user_id: userId
+  }
 }
 
 /**

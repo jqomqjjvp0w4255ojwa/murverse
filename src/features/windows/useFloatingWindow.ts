@@ -33,7 +33,7 @@ export function useFloatingWindow({
   const [tabPosition, setTabPosition] = useState<{x: number, y: number} | null>(null)
   
   // 原有的狀態和邏輯
-  const { pos, startDrag, isDragging, setPos } = useGroupDragAndSnap(id, windowRef as React.RefObject<HTMLDivElement>)
+  const { pos, startDrag, isDragging, setPos } = useGroupDragAndSnap(id, windowRef as React.RefObject<HTMLDivElement>, defaultPosition)
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isFullScreen, setIsFullScreen] = useState(false)
   

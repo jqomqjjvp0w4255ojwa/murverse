@@ -2,10 +2,8 @@
 
 import { Fragment } from '@/features/fragments/types/fragment'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
-import { getSupabaseClient } from '@/lib/supabase/client'
 // 使用統一的 API
 import { loadGlobalTags, saveGlobalTag, loadRecentTags, saveRecentTags } from './SupabaseTagsService'
-import { AuthHelper } from '@/lib/authHelper'
 
 /**
  * 相似標籤類型定義
@@ -116,90 +114,48 @@ export class TagsService {
   }
   
   /**
-   * 將標籤添加到指定碎片
+   * 將標籤添加到指定碎片 - 修正版本
    */
   static async addTagToFragment(fragmentId: string, tag: string): Promise<TagOperationResult> {
-  try {
-    const { apiClient } = await import('@/services/api-client')
-    const success = await apiClient.addTagToFragment(fragmentId, tag)
-    
-    if (success) {
-      // 更新本地 store 狀態
-      const { fragments, setFragments } = useFragmentsStore.getState()
-      const updatedFragments = fragments.map(f => {
-        if (f.id === fragmentId && !f.tags.includes(tag)) {
-          return {
-            ...f,
-            tags: [...f.tags, tag],
-            updatedAt: new Date().toISOString()
-          }
-        }
-        return f
-      })
-      setFragments(updatedFragments)
+    try {
+      // 使用 store 的異步方法
+      await useFragmentsStore.getState().addTagToFragment(fragmentId, tag)
       
       return { 
         success: true, 
         message: `已將標籤「${tag}」添加到碎片`, 
         affectedFragments: 1 
       }
-    } else {
+    } catch (error) {
+      console.error('❌ 添加標籤時發生錯誤:', error)
       return { 
         success: false, 
-        message: '無法添加標籤到碎片' 
+        message: error instanceof Error ? error.message : '添加標籤失敗'
       }
     }
-  } catch (error) {
-    console.error('❌ 添加標籤時發生錯誤:', error)
-    return { 
-      success: false, 
-      message: '添加標籤失敗' 
-    }
   }
-}
   
   /**
-   * 從指定碎片中移除標籤
+   * 從指定碎片中移除標籤 - 修正版本
    */
   static async removeTagFromFragment(fragmentId: string, tag: string): Promise<TagOperationResult> {
-  try {
-    const { apiClient } = await import('@/services/api-client')
-    const success = await apiClient.removeTagFromFragment(fragmentId, tag)
-    
-    if (success) {
-      // 更新本地 store 狀態
-      const { fragments, setFragments } = useFragmentsStore.getState()
-      const updatedFragments = fragments.map(f => {
-        if (f.id === fragmentId) {
-          return {
-            ...f,
-            tags: f.tags.filter(t => t !== tag),
-            updatedAt: new Date().toISOString()
-          }
-        }
-        return f
-      })
-      setFragments(updatedFragments)
+    try {
+      // 使用 store 的異步方法
+      await useFragmentsStore.getState().removeTagFromFragment(fragmentId, tag)
       
       return { 
         success: true, 
         message: `已從碎片中移除標籤「${tag}」`, 
         affectedFragments: 1 
       }
-    } else {
+    } catch (error) {
+      console.error('❌ 移除標籤時發生錯誤:', error)
       return { 
         success: false, 
-        message: '無法從碎片移除標籤' 
+        message: error instanceof Error ? error.message : '移除標籤失敗'
       }
     }
-  } catch (error) {
-    console.error('❌ 移除標籤時發生錯誤:', error)
-    return { 
-      success: false, 
-      message: '移除標籤失敗' 
-    }
   }
-}
   
   /**
    * 尋找包含特定標籤的所有碎片
@@ -311,90 +267,64 @@ export class TagsService {
   }
   
   /**
-   * 批量處理標籤（添加到多個碎片）
+   * 批量處理標籤（添加到多個碎片）- 修正版本
    */
   static async batchAddTag(fragmentIds: string[], tag: string): Promise<TagOperationResult> {
-  try {
-    const { apiClient } = await import('@/services/api-client')
-    let affectedCount = 0
-    
-    // 逐一處理每個 fragment
-    for (const fragmentId of fragmentIds) {
-      const success = await apiClient.addTagToFragment(fragmentId, tag)
-      if (success) {
-        affectedCount++
-      }
-    }
-    
-    if (affectedCount > 0) {
-      // 更新本地 store 狀態
-      const { fragments, setFragments } = useFragmentsStore.getState()
-      const updatedFragments = fragments.map(fragment => {
-        if (fragmentIds.includes(fragment.id) && !fragment.tags.includes(tag)) {
-          return {
-            ...fragment,
-            tags: [...fragment.tags, tag],
-            updatedAt: new Date().toISOString()
-          }
+    try {
+      let successCount = 0
+      let errorCount = 0
+      
+      // 逐一處理每個 fragment
+      for (const fragmentId of fragmentIds) {
+        try {
+          await useFragmentsStore.getState().addTagToFragment(fragmentId, tag)
+          successCount++
+        } catch (error) {
+          console.error(`❌ 無法為 fragment ${fragmentId} 添加標籤:`, error)
+          errorCount++
         }
-        return fragment
-      })
-      setFragments(updatedFragments)
+      }
+      
+      return { 
+        success: successCount > 0, 
+        message: `已將標籤「${tag}」添加到 ${successCount} 個碎片${errorCount > 0 ? `，${errorCount} 個失敗` : ''}`, 
+        affectedFragments: successCount 
+      }
+    } catch (error) {
+      console.error('❌ 批量添加標籤時發生錯誤:', error)
+      return { success: false, message: '批量添加標籤失敗' }
     }
-    
-    return { 
-      success: true, 
-      message: `已將標籤「${tag}」添加到 ${affectedCount} 個碎片`, 
-      affectedFragments: affectedCount 
-    }
-  } catch (error) {
-    console.error('❌ 批量添加標籤時發生錯誤:', error)
-    return { success: false, message: '批量添加標籤失敗' }
   }
-}
   
   /**
-   * 批量處理標籤（從多個碎片移除）
+   * 批量處理標籤（從多個碎片移除）- 修正版本
    */
   static async batchRemoveTag(fragmentIds: string[], tag: string): Promise<TagOperationResult> {
-  try {
-    const { apiClient } = await import('@/services/api-client')
-    let affectedCount = 0
-    
-    // 逐一處理每個 fragment
-    for (const fragmentId of fragmentIds) {
-      const success = await apiClient.removeTagFromFragment(fragmentId, tag)
-      if (success) {
-        affectedCount++
-      }
-    }
-    
-    if (affectedCount > 0) {
-      // 更新本地 store 狀態
-      const { fragments, setFragments } = useFragmentsStore.getState()
-      const updatedFragments = fragments.map(fragment => {
-        if (fragmentIds.includes(fragment.id) && fragment.tags.includes(tag)) {
-          return {
-            ...fragment,
-            tags: fragment.tags.filter(t => t !== tag),
-            updatedAt: new Date().toISOString()
-          }
+    try {
+      let successCount = 0
+      let errorCount = 0
+      
+      // 逐一處理每個 fragment
+      for (const fragmentId of fragmentIds) {
+        try {
+          await useFragmentsStore.getState().removeTagFromFragment(fragmentId, tag)
+          successCount++
+        } catch (error) {
+          console.error(`❌ 無法為 fragment ${fragmentId} 移除標籤:`, error)
+          errorCount++
         }
-        return fragment
-      })
-      setFragments(updatedFragments)
+      }
+      
+      return { 
+        success: successCount > 0, 
+        message: `已從 ${successCount} 個碎片移除標籤「${tag}」${errorCount > 0 ? `，${errorCount} 個失敗` : ''}`, 
+        affectedFragments: successCount 
+      }
+    } catch (error) {
+      console.error('❌ 批量移除標籤時發生錯誤:', error)
+      return { success: false, message: '批量移除標籤失敗' }
     }
-    
-    return { 
-      success: true, 
-      message: `已從 ${affectedCount} 個碎片移除標籤「${tag}」`, 
-      affectedFragments: affectedCount 
-    }
-  } catch (error) {
-    console.error('❌ 批量移除標籤時發生錯誤:', error)
-    return { success: false, message: '批量移除標籤失敗' }
   }
-}
   
   /**
    * 計算標籤使用統計
@@ -415,11 +345,13 @@ export class TagsService {
   }
   
   /**
-   * 重命名標籤（在所有碎片中）
+   * 重命名標籤（在所有碎片中）- 簡化版本
+   * 注意：這個功能比較複雜，因為需要更新所有相關的 fragment
+   * 暫時先實現基本邏輯，後續可以加強
    */
   static async renameTag(oldName: string, newName: string): Promise<TagOperationResult> {
     try {
-      const { fragments, setFragments, save } = useFragmentsStore.getState()
+      const { fragments } = useFragmentsStore.getState()
       
       // 檢查新名稱是否已存在
       const tagExists = fragments.some(f => f.tags.includes(newName))
@@ -430,37 +362,46 @@ export class TagsService {
         }
       }
       
-      let affectedCount = 0
-      const updatedFragments = fragments.map(fragment => {
-        if (fragment.tags.includes(oldName)) {
-          affectedCount++
-          return {
-            ...fragment,
-            tags: fragment.tags.map(t => t === oldName ? newName : t),
-            updatedAt: new Date().toISOString()
-          }
-        }
-        return fragment
-      })
+      // 找到包含舊標籤的所有 fragments
+      const fragmentsWithTag = fragments.filter(f => f.tags.includes(oldName))
       
-      if (affectedCount > 0) {
-        setFragments(updatedFragments)
-        save()
-        
-        // 更新 Supabase 的全域標籤列表
+      if (fragmentsWithTag.length === 0) {
+        return {
+          success: false,
+          message: `標籤「${oldName}」不存在`
+        }
+      }
+      
+      let successCount = 0
+      
+      // 對每個 fragment 進行標籤替換
+      for (const fragment of fragmentsWithTag) {
         try {
-          const tags = await TagsService.loadGlobalTags()
-          const updated = tags.map(t => t === oldName ? newName : t)
-          await TagsService.saveGlobalTags(updated)
+          // 先移除舊標籤
+          await useFragmentsStore.getState().removeTagFromFragment(fragment.id, oldName)
+          // 再添加新標籤
+          await useFragmentsStore.getState().addTagToFragment(fragment.id, newName)
+          successCount++
+        } catch (error) {
+          console.error(`❌ 重命名 fragment ${fragment.id} 的標籤失敗:`, error)
+        }
+      }
+      
+      if (successCount > 0) {
+        // 更新全域標籤
+        try {
+          const globalTags = await this.loadGlobalTags()
+          const updatedTags = globalTags.map(t => t === oldName ? newName : t)
+          await this.saveGlobalTags(updatedTags)
         } catch (e) {
-          console.error('❌ 更新 Supabase 全域標籤失敗', e)
+          console.error('❌ 更新全域標籤失敗', e)
         }
       }
       
       return { 
-        success: true, 
-        message: `已將標籤「${oldName}」重命名為「${newName}」`, 
-        affectedFragments: affectedCount 
+        success: successCount > 0, 
+        message: `已將標籤「${oldName}」重命名為「${newName}」，影響 ${successCount} 個碎片`, 
+        affectedFragments: successCount 
       }
 
     } catch (error) {
@@ -470,43 +411,49 @@ export class TagsService {
   }
   
   /**
-   * 刪除標籤（從所有碎片中移除）
+   * 刪除標籤（從所有碎片中移除）- 修正版本
    */
   static async deleteTag(tag: string): Promise<TagOperationResult> {
     try {
-      const { fragments, setFragments, save } = useFragmentsStore.getState()
+      const { fragments } = useFragmentsStore.getState()
       
-      let affectedCount = 0
-      const updatedFragments = fragments.map(fragment => {
-        if (fragment.tags.includes(tag)) {
-          affectedCount++
-          return {
-            ...fragment,
-            tags: fragment.tags.filter(t => t !== tag),
-            updatedAt: new Date().toISOString()
-          }
+      // 找到包含此標籤的所有 fragments
+      const fragmentsWithTag = fragments.filter(f => f.tags.includes(tag))
+      
+      if (fragmentsWithTag.length === 0) {
+        return {
+          success: false,
+          message: `標籤「${tag}」不存在於任何碎片中`
         }
-        return fragment
-      })
+      }
       
-      if (affectedCount > 0) {
-        setFragments(updatedFragments)
-        save()
-        
-        // 從 Supabase 移除標籤
+      let successCount = 0
+      
+      // 從每個 fragment 中移除標籤
+      for (const fragment of fragmentsWithTag) {
         try {
-          const tags = await TagsService.loadGlobalTags()
-          const updated = tags.filter(t => t !== tag)
-          await TagsService.saveGlobalTags(updated)
+          await useFragmentsStore.getState().removeTagFromFragment(fragment.id, tag)
+          successCount++
+        } catch (error) {
+          console.error(`❌ 從 fragment ${fragment.id} 移除標籤失敗:`, error)
+        }
+      }
+      
+      if (successCount > 0) {
+        // 從全域標籤中移除
+        try {
+          const globalTags = await this.loadGlobalTags()
+          const updatedTags = globalTags.filter(t => t !== tag)
+          await this.saveGlobalTags(updatedTags)
         } catch (e) {
-          console.error('❌ 從 Supabase 移除標籤失敗', e)
+          console.error('❌ 從全域標籤移除失敗', e)
         }
       }
       
       return { 
-        success: true, 
-        message: `已從 ${affectedCount} 個碎片中刪除標籤「${tag}」`, 
-        affectedFragments: affectedCount 
+        success: successCount > 0, 
+        message: `已從 ${successCount} 個碎片中刪除標籤「${tag}」`, 
+        affectedFragments: successCount 
       }
 
     } catch (error) {

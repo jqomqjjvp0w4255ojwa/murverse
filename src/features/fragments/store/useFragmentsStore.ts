@@ -9,7 +9,6 @@ import { matchText, matchFragment, matchesSearchToken } from '@/features/search/
 import { isDateInRange } from '@/features/fragments/utils'
 import { SORT_FIELDS, SORT_ORDERS } from '@/features/fragments/constants'
 
-
 // 使用常量來定義排序方式
 type SortField = typeof SORT_FIELDS[keyof typeof SORT_FIELDS]
 type SortOrder = typeof SORT_ORDERS[keyof typeof SORT_ORDERS]
@@ -29,9 +28,11 @@ interface FragmentsState {
   selectedFragment: Fragment | null
   mode: Mode
   advancedSearch: ParsedSearch | null
+  isLoading: boolean
+  error: string | null
 
-  // 操作方法
-  load: () => void
+  // 操作方法 - 修正為正確的異步簽名
+  load: () => Promise<void>
   save: () => void
   setFragments: (fragments: Fragment[]) => void
   setSearchQuery: (query: string) => void
@@ -44,19 +45,21 @@ interface FragmentsState {
   setMode: (mode: Mode) => void
   setAdvancedSearch: (search: ParsedSearch | null) => void
   setSearchKeyword: (keyword: string) => void
+  setError: (error: string | null) => void
+  setLoading: (loading: boolean) => void
 
   // 進階功能
   getFilteredFragments: () => Fragment[]
   getFilteredFragmentsByAdvancedSearch: () => Fragment[]
 
-  // Fragment 操作
+  // Fragment 操作 - 修正為正確的異步簽名
   addFragment: (content: string, tags: string[], notes: Note[]) => Promise<void>
-  addNoteToFragment: (fragmentId: string, note: Note) => void
-  updateNoteInFragment: (fragmentId: string, noteId: string, updates: Partial<Note>) => void
-  removeNoteFromFragment: (fragmentId: string, noteId: string) => void
+  addNoteToFragment: (fragmentId: string, note: Note) => Promise<void>
+  updateNoteInFragment: (fragmentId: string, noteId: string, updates: Partial<Note>) => Promise<void>
+  removeNoteFromFragment: (fragmentId: string, noteId: string) => Promise<void>
   reorderNotesInFragment: (fragmentId: string, newOrder: string[]) => void
-  addTagToFragment: (fragmentId: string, tag: string) => void
-  removeTagFromFragment: (fragmentId: string, tag: string) => void
+  addTagToFragment: (fragmentId: string, tag: string) => Promise<void>
+  removeTagFromFragment: (fragmentId: string, tag: string) => Promise<void>
 }
 
 // 檢查是否在客戶端環境
@@ -74,68 +77,57 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   selectedFragment: null,
   mode: 'float',
   advancedSearch: null,
+  isLoading: false,
+  error: null,
+
+  // 設置錯誤狀態
+  setError: (error) => set({ error }),
+  
+  // 設置載入狀態
+  setLoading: (loading) => set({ isLoading: loading }),
 
   // 載入碎片資料
-    load: async () => {
-  if (!isClient) return
-  
-  try {
-    const fragments = await apiClient.getFragments()
-    set({ fragments })
-  } catch (error) {
-    console.error('Failed to load fragments:', error)
-  }
-},
+  load: async () => {
+    if (!isClient) return
+    
+    set({ isLoading: true, error: null })
+    
+    try {
+      const fragments = await apiClient.getFragments()
+      set({ fragments, error: null })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load fragments'
+      console.error('Failed to load fragments:', error)
+      set({ error: errorMessage })
+    } finally {
+      set({ isLoading: false })
+    }
+  },
 
-  // 儲存碎片資料
+  // 儲存碎片資料 (已移除本地存儲邏輯)
   save: () => {
-  console.log('Save function called - fragments are now saved immediately')
-},
+    console.log('Save function called - fragments are now saved immediately via API')
+  },
 
   // 設置整個碎片陣列
   setFragments: (fragments) => {
-  set({ fragments })
-  // 自動儲存到本地
-  if (isClient) {
-    localStorage.removeItem('fragment_positions') 
-    // 移除 saveFragments 呼叫，因為我們現在用 API
-  }
-},
+    set({ fragments })
+    // 移除本地存儲邏輯，因為現在使用 API
+  },
 
-  // 設置搜尋查詢
+  // 其他 setter 方法保持不變
   setSearchQuery: (query) => set({ searchQuery: query }),
-  
-  // 設置選定標籤
   setSelectedTags: (tags) => set({ selectedTags: tags }),
-  
-  // 設置排除的標籤
   setExcludedTags: (tags) => set({ excludedTags: tags }),
-  
-  // 設置標籤邏輯模式（AND/OR）
   setTagLogicMode: (mode) => set({ tagLogicMode: mode }),
-  
-  // 設置排序欄位
   setSortField: (field) => set({ sortField: field }),
-  
-  // 設置排序順序
   setSortOrder: (order) => set({ sortOrder: order }),
-  
-  // 設置選定的碎片
   setSelectedFragment: (fragment) => set({ selectedFragment: fragment }),
-  
-  // 設置顯示模式
   setMode: (mode) => set({ mode }),
-  
-  // 設置進階搜尋
   setAdvancedSearch: (search) => set({ advancedSearch: search }),
-  
-  // 設置搜尋關鍵字
   setSearchKeyword: (keyword) => set({ searchKeyword: keyword }),
 
-  /**
-   * 獲取篩選後的碎片
-   * 基於關鍵字搜尋、標籤篩選等條件
-   */
+  // 篩選方法保持不變
   getFilteredFragments: () => {
     const {
       fragments,
@@ -146,17 +138,14 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
       advancedSearch
     } = get() as FragmentsState
   
-    // 如果有進階搜尋，優先使用
     if (advancedSearch) {
       return get().getFilteredFragmentsByAdvancedSearch()
     }
   
-    const mode = 'substring' // 默認搜尋模式
+    const mode = 'substring'
     
     return fragments.filter(fragment => {
-      // 關鍵字篩選
       if (searchQuery && !matchText(fragment.content, searchQuery, mode)) {
-        // 如果有關鍵字且內容不匹配，還檢查筆記是否匹配
         const noteMatches = fragment.notes.some(note => 
           matchText(note.title, searchQuery, mode) || 
           matchText(note.value, searchQuery, mode)
@@ -164,12 +153,10 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
         if (!noteMatches) return false
       }
   
-      // 排除標籤篩選
       if (excludedTags.length > 0 && excludedTags.some(tag => fragment.tags.includes(tag))) {
         return false
       }
   
-      // 選定標籤篩選
       if (selectedTags.length === 0) return true
   
       return tagLogicMode === 'AND'
@@ -178,9 +165,6 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     })
   },
 
-  /**
-   * 基於進階搜尋條件獲取篩選後的碎片
-   */
   getFilteredFragmentsByAdvancedSearch: () => {
     const { fragments, advancedSearch } = get()
     if (!advancedSearch) return fragments
@@ -195,48 +179,53 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     } = advancedSearch
   
     return fragments.filter(fragment => {
-      // 範圍檢查 - 確保只在選定的範圍中搜尋
       if (!scopes.includes('fragment') && !scopes.includes('note') && !scopes.includes('tag')) {
         return false
       }
   
-      // 時間檢查
       const dateField = fragment.updatedAt || fragment.createdAt
       if (!isDateInRange(dateField, timeRange, customStartDate, customEndDate)) {
         return false
       }
   
-      // 使用 matchFragment 函數進行搜尋
       return matchFragment(fragment, tokens, matchMode, scopes)
     })
   },
 
   /**
-   * 添加新碎片
+   * 添加新碎片 - 修正版本
    */
   addFragment: async (content, tags, notes) => {
-  if (!isClient) return
-  
-  try {
-    const newFragment = await apiClient.createFragment({
-      content,
-      tags,
-      notes,
-      type: 'fragment'
-    })
+    if (!isClient) return
     
-    set(state => ({
-      fragments: [newFragment, ...state.fragments]
-    }))
-  } catch (error) {
-    console.error('Failed to add fragment:', error)
-  }
-},
+    set({ isLoading: true, error: null })
+    
+    try {
+      const newFragment = await apiClient.createFragment({
+        content,
+        tags,
+        notes,
+        type: 'fragment'
+      })
+      
+      set(state => ({
+        fragments: [newFragment, ...state.fragments],
+        error: null
+      }))
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add fragment'
+      console.error('Failed to add fragment:', error)
+      set({ error: errorMessage })
+      throw error // 重新拋出錯誤，讓調用方可以處理
+    } finally {
+      set({ isLoading: false })
+    }
+  },
 
   /**
-   * 添加筆記到碎片
+   * 添加筆記到碎片 - 修正版本
    */
-    addNoteToFragment: async (fragmentId, note) => {
+  addNoteToFragment: async (fragmentId, note) => {
     try {
       const success = await apiClient.addNoteToFragment(fragmentId, note)
       
@@ -252,73 +241,94 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
                   updatedAt
                 }
               : f
-          )
+          ),
+          error: null
         }))
+      } else {
+        throw new Error('Failed to add note to fragment')
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add note'
       console.error('Failed to add note to fragment:', error)
+      set({ error: errorMessage })
+      throw error
     }
   },
 
   /**
-   * 更新碎片中的筆記
+   * 更新碎片中的筆記 - 修正版本
    */
-  updateNoteInFragment: (fragmentId, noteId, updates) => {
-    set(state => ({
-      fragments: state.fragments.map(f =>
-        f.id === fragmentId
-          ? {
-            ...f,
-            notes: f.notes.map(n => n.id === noteId ? { ...n, ...updates } : n),
-            updatedAt: new Date().toISOString()
-          }
-          : f
-      )
-    }))
-    
-    // 自動儲存
-    if (isClient) {
-      get().save()
+  updateNoteInFragment: async (fragmentId, noteId, updates) => {
+    try {
+      const success = await apiClient.updateNote(fragmentId, noteId, updates)
+      
+      if (success) {
+        set(state => ({
+          fragments: state.fragments.map(f =>
+            f.id === fragmentId
+              ? {
+                ...f,
+                notes: f.notes.map(n => n.id === noteId ? { ...n, ...updates } : n),
+                updatedAt: new Date().toISOString()
+              }
+              : f
+          ),
+          error: null
+        }))
+      } else {
+        throw new Error('Failed to update note')
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update note'
+      console.error('Failed to update note:', error)
+      set({ error: errorMessage })
+      throw error
     }
   },
 
   /**
-   * 從碎片移除筆記
+   * 從碎片移除筆記 - 修正版本
    */
-  removeNoteFromFragment: (fragmentId, noteId) => {
-    set(state => ({
-      fragments: state.fragments.map(f =>
-        f.id === fragmentId
-          ? {
-            ...f,
-            notes: f.notes.filter(n => n.id !== noteId),
-            updatedAt: new Date().toISOString()
-          }
-          : f
-      )
-    }))
-    
-    // 自動儲存
-    if (isClient) {
-      get().save()
+  removeNoteFromFragment: async (fragmentId, noteId) => {
+    try {
+      const success = await apiClient.deleteNote(fragmentId, noteId)
+      
+      if (success) {
+        set(state => ({
+          fragments: state.fragments.map(f =>
+            f.id === fragmentId
+              ? {
+                ...f,
+                notes: f.notes.filter(n => n.id !== noteId),
+                updatedAt: new Date().toISOString()
+              }
+              : f
+          ),
+          error: null
+        }))
+      } else {
+        throw new Error('Failed to remove note')
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to remove note'
+      console.error('Failed to remove note:', error)
+      set({ error: errorMessage })
+      throw error
     }
   },
 
   /**
-   * 重新排序碎片中的筆記
+   * 重新排序碎片中的筆記 - 這個只更新本地狀態，不需要 API
    */
   reorderNotesInFragment: (fragmentId, newOrder) => {
     set(state => ({
       fragments: state.fragments.map(f => {
         if (f.id !== fragmentId) return f
         
-        // 創建筆記映射，保持筆記內容引用
         const notesMap = Object.fromEntries(f.notes.map(n => [n.id, n]))
-        
-        // 根據新順序重新排列筆記
         const orderedNotes = newOrder
           .map(id => notesMap[id])
-          .filter(Boolean) // 過濾出任何未找到的筆記ID
+          .filter(Boolean)
         
         return {
           ...f,
@@ -327,17 +337,12 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
         }
       })
     }))
-    
-    // 自動儲存
-    if (isClient) {
-      get().save()
-    }
   },
 
   /**
-   * 添加標籤到碎片
+   * 添加標籤到碎片 - 已正確實現
    */
-   addTagToFragment: async (fragmentId, tag) => {
+  addTagToFragment: async (fragmentId, tag) => {
     try {
       const success = await apiClient.addTagToFragment(fragmentId, tag)
       
@@ -351,16 +356,22 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
                   updatedAt: new Date().toISOString()
                 }
               : f
-          )
+          ),
+          error: null
         }))
+      } else {
+        throw new Error('Failed to add tag')
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add tag'
       console.error('Failed to add tag to fragment:', error)
+      set({ error: errorMessage })
+      throw error
     }
   },
 
   /**
-   * 從碎片移除標籤
+   * 從碎片移除標籤 - 已正確實現
    */
   removeTagFromFragment: async (fragmentId, tag) => {
     try {
@@ -376,11 +387,17 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
                   updatedAt: new Date().toISOString()
                 }
               : f
-          )
+          ),
+          error: null
         }))
+      } else {
+        throw new Error('Failed to remove tag')
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to remove tag'
       console.error('Failed to remove tag from fragment:', error)
+      set({ error: errorMessage })
+      throw error
     }
   },
 }))
