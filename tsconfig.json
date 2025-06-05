@@ -30,7 +30,6 @@
     ".next/types/**/*.ts", 
     "src/stores", 
     "src/hooks/useGroupManager.txy", 
-    "src/hooks/GroupDebugHelper", 
     "src/hooks/GroupingTest.TXT"
   ],
   "exclude": ["node_modules"]
