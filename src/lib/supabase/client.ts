@@ -15,12 +15,19 @@ export function getSupabaseClient(): SupabaseClient | null {
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
+    console.log('🔍 Debug env vars:', {
+      url: !!supabaseUrl,
+      key: !!supabaseAnonKey,
+      urlValue: supabaseUrl?.substring(0, 30) + '...',
+      keyValue: supabaseAnonKey?.substring(0, 20) + '...',
+      nodeEnv: process.env.NODE_ENV
+    })
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error('❌ Missing Supabase environment variables:', {
       url: !!supabaseUrl,
       key: !!supabaseAnonKey,
       nodeEnv: process.env.NODE_ENV
+      
     })
     return null
   }
