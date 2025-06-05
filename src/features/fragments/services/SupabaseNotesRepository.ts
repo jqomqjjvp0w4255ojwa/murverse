@@ -64,20 +64,27 @@ export async function updateNote(noteId: string, updates: Partial<Note>): Promis
       throw new Error('User not authenticated')
     }
 
-    // 檢查權限：note 是否屬於用戶的 fragment
-    const { data: noteWithFragment, error: noteError } = await supabase
+    // 簡化權限檢查：先檢查 note 是否存在
+    const { data: note, error: noteError } = await supabase
       .from(TABLE)
-      .select(`
-        id,
-        fragment_id,
-        fragments!inner(user_id)
-      `)
+      .select('fragment_id')
       .eq('id', noteId)
-      .eq('fragments.user_id', userId)
       .single()
 
-    if (noteError || !noteWithFragment) {
-      throw new Error('Note not found or access denied')
+    if (noteError || !note) {
+      throw new Error('Note not found')
+    }
+
+    // 再檢查 fragment 是否屬於用戶
+    const { data: fragment, error: fragmentError } = await supabase
+      .from('fragments')
+      .select('id')
+      .eq('id', note.fragment_id)
+      .eq('user_id', userId)
+      .single()
+
+    if (fragmentError || !fragment) {
+      throw new Error('Access denied')
     }
 
     const { error } = await supabase
@@ -113,20 +120,27 @@ export async function deleteNote(noteId: string): Promise<boolean> {
       throw new Error('User not authenticated')
     }
 
-    // 檢查權限：note 是否屬於用戶的 fragment
-    const { data: noteWithFragment, error: noteError } = await supabase
+    // 簡化權限檢查：先檢查 note 是否存在
+    const { data: note, error: noteError } = await supabase
       .from(TABLE)
-      .select(`
-        id,
-        fragment_id,
-        fragments!inner(user_id)
-      `)
+      .select('fragment_id')
       .eq('id', noteId)
-      .eq('fragments.user_id', userId)
       .single()
 
-    if (noteError || !noteWithFragment) {
-      throw new Error('Note not found or access denied')
+    if (noteError || !note) {
+      throw new Error('Note not found')
+    }
+
+    // 再檢查 fragment 是否屬於用戶
+    const { data: fragment, error: fragmentError } = await supabase
+      .from('fragments')
+      .select('id')
+      .eq('id', note.fragment_id)
+      .eq('user_id', userId)
+      .single()
+
+    if (fragmentError || !fragment) {
+      throw new Error('Access denied')
     }
 
     const { error } = await supabase
@@ -166,6 +180,7 @@ export async function getNotesByFragmentId(fragmentId: string): Promise<Note[]> 
       .from(TABLE)
       .select('*')
       .eq('fragment_id', fragmentId)
+      .order('createdAt', { ascending: true })
 
     if (error) {
       throw new Error(`Failed to load notes: ${error.message}`)

@@ -1,8 +1,9 @@
 import { getSupabaseClient } from '@/lib/supabase/client'
 import { Fragment, DbFragment, dbFragmentToFragment, fragmentToDbFragment } from '@/features/fragments/types/fragment'
 import { AuthHelper } from '@/lib/authHelper'
-import { getNotesByFragmentId } from './SupabaseNotesRepository'
-import { getTagsByFragmentId } from './SupabaseTagsRepository'
+// 靜態導入，避免循環導入問題
+import { getNotesByFragmentId, addNote } from './SupabaseNotesRepository'
+import { getTagsByFragmentId, addTagToFragment } from './SupabaseTagsRepository'
 
 const TABLE_NAME = 'fragments'
 
@@ -27,7 +28,8 @@ export async function loadFragments(): Promise<Fragment[]> {
       .order('updatedAt', { ascending: false })
 
     if (error) {
-      throw new Error(`Failed to load fragments: ${error.message}`)
+      console.error('❌ Failed to load fragments:', error)
+      return [] // 統一錯誤處理方式
     }
 
     if (!data || data.length === 0) {
@@ -58,11 +60,11 @@ export async function loadFragments(): Promise<Fragment[]> {
 
   } catch (error) {
     console.error('❌ 載入 fragments 時發生錯誤:', error)
-    throw error // 重新拋出錯誤，讓調用方處理
+    return [] // 統一錯誤處理
   }
 }
 
-export async function saveFragments(fragments: Fragment[]): Promise<void> {
+export async function saveFragments(fragments: Fragment[]): Promise<boolean> {
   try {
     const supabase = getSupabaseClient()
     if (!supabase) {
@@ -76,7 +78,7 @@ export async function saveFragments(fragments: Fragment[]): Promise<void> {
 
     if (fragments.length === 0) {
       console.log('⚠️ 沒有 fragments 需要儲存')
-      return
+      return true
     }
 
     // 轉換為資料庫格式
@@ -89,14 +91,16 @@ export async function saveFragments(fragments: Fragment[]): Promise<void> {
       .upsert(fragmentsBasicData, { onConflict: 'id' })
       
     if (error) {
-      throw new Error(`Failed to save fragments: ${error.message}`)
+      console.error('❌ Failed to save fragments:', error)
+      return false
     }
 
     console.log(`✅ 成功儲存 ${fragments.length} 個 fragments 到雲端`)
+    return true
 
   } catch (error) {
     console.error('❌ 儲存 fragments 時發生錯誤:', error)
-    throw error
+    return false
   }
 }
 
@@ -121,7 +125,8 @@ export async function saveFragment(fragment: Fragment): Promise<boolean> {
       .upsert([dbFragment], { onConflict: 'id' })
 
     if (error) {
-      throw new Error(`Failed to save fragment: ${error.message}`)
+      console.error('❌ Failed to save fragment:', error)
+      return false
     }
 
     console.log(`✅ 成功儲存 fragment: ${fragment.id}`)
@@ -133,16 +138,48 @@ export async function saveFragment(fragment: Fragment): Promise<boolean> {
   }
 }
 
-// 完整儲存 fragment（包含 notes 和 tags）
+// 改善的完整儲存 fragment（包含 notes 和 tags）
 export async function saveFragmentComplete(fragment: Fragment): Promise<boolean> {
+  const supabase = getSupabaseClient()
+  if (!supabase) {
+    console.error('Supabase client not available')
+    return false
+  }
+
+  const userId = await AuthHelper.getUserId()
+  if (!userId) {
+    console.error('User not authenticated')
+    return false
+  }
+
+  console.log(`🔄 開始完整儲存 fragment: ${fragment.id}`)
+
   try {
-    const userId = await AuthHelper.getUserId()
-    if (!userId) {
-      throw new Error('User not authenticated')
+    // 使用單一事務來確保資料一致性
+    const { error: txError } = await supabase.rpc('save_fragment_complete', {
+      fragment_data: fragmentToDbFragment(fragment, userId),
+      tags_data: fragment.tags || [],
+      notes_data: fragment.notes || []
+    })
+
+    if (txError) {
+      // 如果資料庫不支援 RPC，則回退到逐步儲存
+      console.log('RPC 不可用，使用逐步儲存方式')
+      return await saveFragmentStepByStep(fragment)
     }
 
-    console.log(`🔄 開始完整儲存 fragment: ${fragment.id}`)
+    console.log(`✅ 完整儲存 fragment 成功: ${fragment.id}`)
+    return true
+    
+  } catch (error) {
+    console.error('❌ 完整儲存 fragment 失敗，嘗試逐步儲存:', error)
+    return await saveFragmentStepByStep(fragment)
+  }
+}
 
+// 逐步儲存的後備方案
+async function saveFragmentStepByStep(fragment: Fragment): Promise<boolean> {
+  try {
     // 1. 儲存基本 fragment 資料
     const success = await saveFragment(fragment)
     if (!success) {
@@ -151,27 +188,29 @@ export async function saveFragmentComplete(fragment: Fragment): Promise<boolean>
 
     // 2. 儲存 tags（如果有）
     if (fragment.tags && fragment.tags.length > 0) {
-      const { addTagToFragment } = await import('./SupabaseTagsRepository')
-      
       for (const tag of fragment.tags) {
-        await addTagToFragment(fragment.id, tag)
+        const tagSuccess = await addTagToFragment(fragment.id, tag)
+        if (!tagSuccess) {
+          console.warn(`警告: 無法儲存標籤 "${tag}" 到 fragment ${fragment.id}`)
+        }
       }
     }
 
     // 3. 儲存 notes（如果有）
     if (fragment.notes && fragment.notes.length > 0) {
-      const { addNote } = await import('./SupabaseNotesRepository')
-      
       for (const note of fragment.notes) {
-        await addNote(fragment.id, note)
+        const noteSuccess = await addNote(fragment.id, note)
+        if (!noteSuccess) {
+          console.warn(`警告: 無法儲存筆記 "${note.title}" 到 fragment ${fragment.id}`)
+        }
       }
     }
 
-    console.log(`✅ 完整儲存 fragment 成功: ${fragment.id}`)
+    console.log(`✅ 逐步儲存 fragment 成功: ${fragment.id}`)
     return true
     
   } catch (error) {
-    console.error('❌ 完整儲存 fragment 失敗:', error)
+    console.error('❌ 逐步儲存 fragment 失敗:', error)
     return false
   }
 }
@@ -198,7 +237,8 @@ export async function deleteFragment(fragmentId: string): Promise<boolean> {
       .single()
 
     if (fragmentError || !fragment) {
-      throw new Error('Fragment not found or access denied')
+      console.error('Fragment not found or access denied')
+      return false
     }
 
     // 刪除 fragment（關聯的 notes 和 tags 應該透過 CASCADE 自動刪除）
@@ -209,7 +249,8 @@ export async function deleteFragment(fragmentId: string): Promise<boolean> {
       .eq('user_id', userId)
 
     if (error) {
-      throw new Error(`Failed to delete fragment: ${error.message}`)
+      console.error('❌ Failed to delete fragment:', error)
+      return false
     }
 
     console.log(`✅ 成功刪除 fragment: ${fragmentId}`)
@@ -243,7 +284,8 @@ export async function updateFragment(fragmentId: string, updates: Partial<Fragme
       .single()
 
     if (fragmentError || !fragment) {
-      throw new Error('Fragment not found or access denied')
+      console.error('Fragment not found or access denied')
+      return false
     }
 
     // 移除關聯資料和不可更新的欄位
@@ -259,7 +301,8 @@ export async function updateFragment(fragmentId: string, updates: Partial<Fragme
       .eq('user_id', userId)
 
     if (error) {
-      throw new Error(`Failed to update fragment: ${error.message}`)
+      console.error('❌ Failed to update fragment:', error)
+      return false
     }
 
     console.log(`✅ 成功更新 fragment: ${fragmentId}`)
@@ -296,7 +339,8 @@ export async function getFragmentById(fragmentId: string): Promise<Fragment | nu
         // 沒有找到記錄
         return null
       }
-      throw new Error(`Failed to get fragment: ${error.message}`)
+      console.error('❌ Failed to get fragment:', error)
+      return null
     }
 
     // 載入關聯資料

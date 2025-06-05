@@ -14,6 +14,7 @@ import TagActionRing from '@/features/tags/components/TagActionRing'
 import TagDetailModal from '@/features/tags/components/TagDetailModal'
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
 import { TagsService } from '@/features/tags/services/TagsService'
+import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore' // 新增導入
 
 interface FragmentCardProps {
   fragment: GridFragment;
@@ -55,6 +56,9 @@ const FragmentCard = ({
   const { startTagDrag, wasDraggingRef } = useTagDragManager()
   const [detailTag, setDetailTag] = useState<string | null>(null);
   
+  // 獲取 fragments 用於 TagsService 方法調用
+  const { fragments } = useFragmentsStore()
+  
   // 處理標籤點擊
     const handleTagClick = (tagName: string, e: React.MouseEvent) => {
       e.stopPropagation(); // 防止觸發卡片選擇
@@ -91,22 +95,19 @@ const FragmentCard = ({
       setTagActionPosition(null);
     };
 
-  
-
-
-  
-  // 處理刪除標籤
+  // 處理刪除標籤 - 修正版本
   const handleDeleteTag = (tagName: string) => {
       const isConfirmed = window.confirm(`確定要從所有碎片中刪除標籤「${tagName}」嗎？此操作無法撤銷。`)
       
       if (isConfirmed) {
-        TagsService.deleteTag(tagName).then(result => {
+        TagsService.deleteTag(tagName, fragments).then(result => { // 修正：傳入 fragments 參數
           if (result.success) {
             console.log(`🗑️ ${result.message}`)
           }
         })
       }
     }
+  
   // 處理標籤拖曳開始
   const handleTagDragStart = (e: React.MouseEvent, tagName: string) => {
     e.stopPropagation() // 防止觸發卡片拖曳
@@ -588,11 +589,11 @@ const FragmentCard = ({
       />
     )}
 
-    {/* 標籤詳情頁 */}
+    {/* 標籤詳情頁 - 修正版本 */}
     {showTagDetail && detailTag && (
       <TagDetailModal
         tag={detailTag}
-        relatedFragments={TagsService.findFragmentsByTag(detailTag)}
+        relatedFragments={TagsService.findFragmentsByTag(fragments, detailTag)}
         onClose={handleCloseTagDetail}
       />
     )}

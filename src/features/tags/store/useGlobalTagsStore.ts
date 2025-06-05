@@ -10,6 +10,7 @@ import {
   loadRecentTags,
   saveRecentTags
 } from '@/features/tags/services/SupabaseTagsService'
+import { Fragment } from '@/features/fragments/types/fragment'
 
 type TagMode = 'search' | 'add'
 
@@ -22,7 +23,7 @@ interface TagsStoreState {
   /* 標籤管理 */
   globalTags: TagInfo[];
   recentlyUsedTags: string[];
-  initializeFromFragments: (fragments: any[]) => Promise<void>;
+  initializeFromFragments: (fragments: Fragment[]) => Promise<void>;
   addGlobalTag: (tagName: string) => Promise<void>;
   removeGlobalTags: (tagNames: string[]) => Promise<void>;
   renameGlobalTag: (oldName: string, newName: string) => Promise<void>;

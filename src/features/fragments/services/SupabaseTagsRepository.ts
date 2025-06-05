@@ -3,8 +3,6 @@ import { AuthHelper } from '@/lib/authHelper'
 
 const TABLE = 'fragment_tags'
 
-// 導出所有函數，確保其他模組可以正確引用
-
 export async function getTagsByFragmentId(fragmentId: string): Promise<string[]> {
   try {
     const supabase = getSupabaseClient()
@@ -141,7 +139,7 @@ export async function removeTagFromFragment(fragmentId: string, tag: string): Pr
   }
 }
 
-// 新增：獲取用戶的所有標籤統計
+// 修正標籤統計查詢
 export async function getUserTagStats(): Promise<Array<{name: string, count: number}>> {
   try {
     const supabase = getSupabaseClient()
@@ -154,22 +152,34 @@ export async function getUserTagStats(): Promise<Array<{name: string, count: num
       throw new Error('User not authenticated')
     }
 
-    // 使用 JOIN 查詢獲取用戶的所有標籤及使用次數
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select(`
-        tag,
-        fragments!inner(user_id)
-      `)
-      .eq('fragments.user_id', userId)
+    // 直接使用替代方案：先獲取用戶的所有 fragments，再查詢 tags
+    const { data: userFragments, error: fragmentsError } = await supabase
+      .from('fragments')
+      .select('id')
+      .eq('user_id', userId)
 
-    if (error) {
-      throw new Error(`Failed to load tag stats: ${error.message}`)
+    if (fragmentsError || !userFragments) {
+      throw new Error('Failed to load user fragments')
+    }
+
+    const fragmentIds = userFragments.map(f => f.id)
+    
+    if (fragmentIds.length === 0) {
+      return []
+    }
+
+    const { data: tagsData, error: tagsError } = await supabase
+      .from(TABLE)
+      .select('tag')
+      .in('fragment_id', fragmentIds)
+
+    if (tagsError) {
+      throw new Error(`Failed to load tag stats: ${tagsError.message}`)
     }
 
     // 統計每個標籤的使用次數
     const tagCounts: Record<string, number> = {}
-    data?.forEach(item => {
+    tagsData?.forEach(item => {
       tagCounts[item.tag] = (tagCounts[item.tag] || 0) + 1
     })
 

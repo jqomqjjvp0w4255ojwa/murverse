@@ -3,7 +3,6 @@
 import { create } from 'zustand'
 import { Fragment, Note } from '@/features/fragments/types/fragment'
 import { apiClient } from '@/services/api-client'
-import { v4 as uuidv4 } from 'uuid'
 import { ParsedSearch, SearchToken } from '@/features/search/useAdvancedSearch'
 import { matchText, matchFragment, matchesSearchToken } from '@/features/search/searchHelpers'
 import { isDateInRange } from '@/features/fragments/utils'
@@ -31,7 +30,7 @@ interface FragmentsState {
   isLoading: boolean
   error: string | null
 
-  // 操作方法 - 修正為正確的異步簽名
+  // 操作方法
   load: () => Promise<void>
   save: () => void
   setFragments: (fragments: Fragment[]) => void
@@ -52,7 +51,7 @@ interface FragmentsState {
   getFilteredFragments: () => Fragment[]
   getFilteredFragmentsByAdvancedSearch: () => Fragment[]
 
-  // Fragment 操作 - 修正為正確的異步簽名
+  // Fragment 操作 - 修正為正確的 API 呼叫
   addFragment: (content: string, tags: string[], notes: Note[]) => Promise<void>
   addNoteToFragment: (fragmentId: string, note: Note) => Promise<void>
   updateNoteInFragment: (fragmentId: string, noteId: string, updates: Partial<Note>) => Promise<void>
@@ -112,7 +111,6 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   // 設置整個碎片陣列
   setFragments: (fragments) => {
     set({ fragments })
-    // 移除本地存儲邏輯，因為現在使用 API
   },
 
   // 其他 setter 方法保持不變
@@ -216,7 +214,7 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
       const errorMessage = error instanceof Error ? error.message : 'Failed to add fragment'
       console.error('Failed to add fragment:', error)
       set({ error: errorMessage })
-      throw error // 重新拋出錯誤，讓調用方可以處理
+      throw error
     } finally {
       set({ isLoading: false })
     }
@@ -227,26 +225,23 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
    */
   addNoteToFragment: async (fragmentId, note) => {
     try {
-      const success = await apiClient.addNoteToFragment(fragmentId, note)
+      // apiClient.addNoteToFragment 返回 Note 物件，不是 boolean
+      const addedNote = await apiClient.addNoteToFragment(fragmentId, note)
       
-      if (success) {
-        const updatedAt = new Date().toISOString()
-        
-        set(state => ({
-          fragments: state.fragments.map(f =>
-            f.id === fragmentId
-              ? {
-                  ...f,
-                  notes: [...f.notes, note],
-                  updatedAt
-                }
-              : f
-          ),
-          error: null
-        }))
-      } else {
-        throw new Error('Failed to add note to fragment')
-      }
+      const updatedAt = new Date().toISOString()
+      
+      set(state => ({
+        fragments: state.fragments.map(f =>
+          f.id === fragmentId
+            ? {
+                ...f,
+                notes: [...f.notes, addedNote],
+                updatedAt
+              }
+            : f
+        ),
+        error: null
+      }))
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to add note'
       console.error('Failed to add note to fragment:', error)
@@ -260,24 +255,21 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
    */
   updateNoteInFragment: async (fragmentId, noteId, updates) => {
     try {
-      const success = await apiClient.updateNote(fragmentId, noteId, updates)
+      // apiClient.updateNote 返回 void，但成功時不拋錯誤
+      await apiClient.updateNote(fragmentId, noteId, updates)
       
-      if (success) {
-        set(state => ({
-          fragments: state.fragments.map(f =>
-            f.id === fragmentId
-              ? {
-                ...f,
-                notes: f.notes.map(n => n.id === noteId ? { ...n, ...updates } : n),
-                updatedAt: new Date().toISOString()
-              }
-              : f
-          ),
-          error: null
-        }))
-      } else {
-        throw new Error('Failed to update note')
-      }
+      set(state => ({
+        fragments: state.fragments.map(f =>
+          f.id === fragmentId
+            ? {
+              ...f,
+              notes: f.notes.map(n => n.id === noteId ? { ...n, ...updates } : n),
+              updatedAt: new Date().toISOString()
+            }
+            : f
+        ),
+        error: null
+      }))
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update note'
       console.error('Failed to update note:', error)
@@ -291,24 +283,21 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
    */
   removeNoteFromFragment: async (fragmentId, noteId) => {
     try {
-      const success = await apiClient.deleteNote(fragmentId, noteId)
+      // apiClient.deleteNote 返回 void，但成功時不拋錯誤
+      await apiClient.deleteNote(fragmentId, noteId)
       
-      if (success) {
-        set(state => ({
-          fragments: state.fragments.map(f =>
-            f.id === fragmentId
-              ? {
-                ...f,
-                notes: f.notes.filter(n => n.id !== noteId),
-                updatedAt: new Date().toISOString()
-              }
-              : f
-          ),
-          error: null
-        }))
-      } else {
-        throw new Error('Failed to remove note')
-      }
+      set(state => ({
+        fragments: state.fragments.map(f =>
+          f.id === fragmentId
+            ? {
+              ...f,
+              notes: f.notes.filter(n => n.id !== noteId),
+              updatedAt: new Date().toISOString()
+            }
+            : f
+        ),
+        error: null
+      }))
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove note'
       console.error('Failed to remove note:', error)
@@ -340,28 +329,25 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   },
 
   /**
-   * 添加標籤到碎片 - 已正確實現
+   * 添加標籤到碎片 - 修正版本
    */
   addTagToFragment: async (fragmentId, tag) => {
     try {
-      const success = await apiClient.addTagToFragment(fragmentId, tag)
+      // apiClient.addTagToFragment 返回 void，但成功時不拋錯誤
+      await apiClient.addTagToFragment(fragmentId, tag)
       
-      if (success) {
-        set(state => ({
-          fragments: state.fragments.map(f =>
-            f.id === fragmentId && !f.tags.includes(tag)
-              ? {
-                  ...f,
-                  tags: [...f.tags, tag],
-                  updatedAt: new Date().toISOString()
-                }
-              : f
-          ),
-          error: null
-        }))
-      } else {
-        throw new Error('Failed to add tag')
-      }
+      set(state => ({
+        fragments: state.fragments.map(f =>
+          f.id === fragmentId && !f.tags.includes(tag)
+            ? {
+                ...f,
+                tags: [...f.tags, tag],
+                updatedAt: new Date().toISOString()
+              }
+            : f
+        ),
+        error: null
+      }))
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to add tag'
       console.error('Failed to add tag to fragment:', error)
@@ -371,28 +357,25 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   },
 
   /**
-   * 從碎片移除標籤 - 已正確實現
+   * 從碎片移除標籤 - 修正版本
    */
   removeTagFromFragment: async (fragmentId, tag) => {
     try {
-      const success = await apiClient.removeTagFromFragment(fragmentId, tag)
+      // apiClient.removeTagFromFragment 返回 void，但成功時不拋錯誤
+      await apiClient.removeTagFromFragment(fragmentId, tag)
       
-      if (success) {
-        set(state => ({
-          fragments: state.fragments.map(f =>
-            f.id === fragmentId
-              ? {
-                  ...f,
-                  tags: f.tags.filter(t => t !== tag),
-                  updatedAt: new Date().toISOString()
-                }
-              : f
-          ),
-          error: null
-        }))
-      } else {
-        throw new Error('Failed to remove tag')
-      }
+      set(state => ({
+        fragments: state.fragments.map(f =>
+          f.id === fragmentId
+            ? {
+                ...f,
+                tags: f.tags.filter(t => t !== tag),
+                updatedAt: new Date().toISOString()
+              }
+            : f
+        ),
+        error: null
+      }))
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove tag'
       console.error('Failed to remove tag from fragment:', error)
