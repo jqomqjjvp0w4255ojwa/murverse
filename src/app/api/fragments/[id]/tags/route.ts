@@ -6,7 +6,7 @@ import { getServerUserId, checkFragmentOwnership } from '@/lib/auth/server-auth'
 // 新增標籤到 fragment
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getServerUserId(request)
@@ -15,7 +15,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const fragmentId = params.id
+    const { id } = await params
+    const fragmentId = id
     const { tag } = await request.json()
     
     if (!tag || typeof tag !== 'string' || !tag.trim()) {
@@ -74,7 +75,7 @@ export async function POST(
 // 刪除標籤
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getServerUserId(request)
@@ -83,7 +84,8 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const fragmentId = params.id
+    const { id } = await params
+    const fragmentId = id
     const url = new URL(request.url)
     const tag = url.searchParams.get('tag')
     

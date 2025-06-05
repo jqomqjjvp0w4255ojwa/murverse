@@ -6,7 +6,7 @@ import { getServerUserId, checkFragmentOwnership } from '@/lib/auth/server-auth'
 // 新增筆記
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getServerUserId(request)
@@ -15,7 +15,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const fragmentId = params.id
+    const { id } = await params
+    const fragmentId = id
     const note = await request.json()
     
     // 驗證必要欄位
@@ -75,7 +76,7 @@ export async function POST(
 // 更新筆記
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getServerUserId(request)
@@ -84,7 +85,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const fragmentId = params.id
+    const { id } = await params
+    const fragmentId = id
     const updates = await request.json()
     const { noteId, ...noteUpdates } = updates
 
@@ -135,7 +137,7 @@ export async function PATCH(
 // 刪除筆記
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const userId = await getServerUserId(request)
@@ -144,6 +146,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
+    const { id } = await params
     const url = new URL(request.url)
     const noteId = url.searchParams.get('noteId')
 
