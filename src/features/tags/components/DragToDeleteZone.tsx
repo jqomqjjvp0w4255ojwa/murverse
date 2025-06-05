@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
 import { TagsService } from '@/features/tags/services/TagsService'
+import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore' // 新增導入
 
 interface DragToDeleteZoneProps {
   // 可以添加自定義屬性，例如位置
@@ -15,6 +16,7 @@ const DragToDeleteZone: React.FC<DragToDeleteZoneProps> = ({
   customPosition
 }) => {
   const { draggingTag, isDragging } = useTagDragManager()
+  const { fragments } = useFragmentsStore() // 獲取 fragments
   const zoneRef = useRef<HTMLDivElement>(null)
   const [isOver, setIsOver] = useState(false)
   const [deleteConfirmed, setDeleteConfirmed] = useState(false)
@@ -69,8 +71,8 @@ const DragToDeleteZone: React.FC<DragToDeleteZoneProps> = ({
         // 這裡可以添加彈出確認窗口，但這裡使用延時作為示範
         const timer = setTimeout(async () => {
           try {
-            // 實際執行刪除操作 - 正確處理異步函數
-            const result = await TagsService.deleteTag(draggingTag)
+            // 實際執行刪除操作 - 修正：傳入 fragments 參數
+            const result = await TagsService.deleteTag(draggingTag, fragments)
             console.log(`🗑️ ${result.message}`)
           } catch (error) {
             console.error('刪除標籤失敗:', error)
@@ -86,7 +88,7 @@ const DragToDeleteZone: React.FC<DragToDeleteZoneProps> = ({
     
     window.addEventListener('mouseup', handleMouseUp)
     return () => window.removeEventListener('mouseup', handleMouseUp)
-  }, [isOver, draggingTag, deleteConfirmed])
+  }, [isOver, draggingTag, deleteConfirmed, fragments]) // 加入 fragments 依賴
 
   return (
     <div
