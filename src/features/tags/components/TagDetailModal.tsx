@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react'
 import { Fragment } from '@/features/fragments/types/fragment'
 import { useTagCollectionStore } from '@/features/tags/store/useTagCollectionStore'
 import { TagsService } from '@/features/tags/services/TagsService'
+import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore' // 新增導入
 
 interface TagDetailModalProps {
   tag: string
@@ -18,6 +19,7 @@ const TagDetailModal: React.FC<TagDetailModalProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const { isCollected, addTag, removeTag } = useTagCollectionStore();
+  const { fragments } = useFragmentsStore(); // 獲取 fragments
   const alreadyCollected = isCollected(tag);
   
   // 添加雙擊檢測變數
@@ -43,8 +45,8 @@ const TagDetailModal: React.FC<TagDetailModalProps> = ({
     return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
   };
 
-  // 尋找相似標籤
-  const similarTags = TagsService.findSimilarTagsByCooccurrence(tag, 5);
+  // 尋找相似標籤 - 修正：傳入 fragments 和 tag 參數
+  const similarTags = TagsService.findSimilarTagsByCooccurrence(tag, fragments, 5);
 
   return (
     <div 
