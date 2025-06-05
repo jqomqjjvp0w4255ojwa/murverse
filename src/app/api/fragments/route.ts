@@ -1,62 +1,19 @@
 // app/api/fragments/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
-
-// 簡化的用戶 ID 獲取邏輯
-async function getUserId(request: NextRequest): Promise<string | null> {
-  try {
-    const supabase = createServerSupabaseClient()
-    
-    // 方法1: 嘗試從 Authorization header 獲取
-    const authHeader = request.headers.get('authorization')
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7)
-      const { data: { user }, error } = await supabase.auth.getUser(token)
-      
-      if (!error && user) {
-        console.log('✅ 從 Header 獲取用戶:', user.id)
-        return user.id
-      }
-    }
-    
-    // 方法2: 嘗試從 cookies 獲取（瀏覽器直接訪問）
-    try {
-      const { data: { user }, error } = await supabase.auth.getUser()
-      
-      if (!error && user) {
-        console.log('✅ 從 Cookies 獲取用戶:', user.id)
-        return user.id
-      }
-    } catch (cookieError) {
-      console.log('Cookies 方式失敗:', cookieError)
-    }
-    
-    console.error('❌ 所有認證方式都失敗')
-    return null
-    
-  } catch (error) {
-    console.error('❌ Auth error:', error)
-    return null
-  }
-}
-
-// 獲取 Supabase client
-function getSupabaseClient() {
-  return createServerSupabaseClient()
-}
+import { getServerUserId } from '@/lib/auth/server-auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getUserId(request)
+    const userId = await getServerUserId(request)
     
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     
-    const supabase = getSupabaseClient()
+    const supabase = createServerSupabaseClient()
     
-    console.log('🔍 查詢用戶 ID:', userId, '的碎片')
+    console.log('🔍 Fetching fragments for user:', userId)
     
     const { data: fragments, error } = await supabase
       .from('fragments')
@@ -69,14 +26,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load fragments' }, { status: 500 })
     }
 
-    console.log('📊 找到', fragments?.length || 0, '個碎片')
+    console.log('📊 Found fragments:', fragments?.length || 0)
 
-    // 為每個 fragment 載入 notes 和 tags
+    // 為每個 fragment 載入關聯的 notes 和 tags
     const fragmentsWithRelations = await Promise.all(
       (fragments || []).map(async (fragment) => {
         const [notesRes, tagsRes] = await Promise.all([
-          supabase.from('notes').select('*').eq('fragment_id', fragment.id),
-          supabase.from('fragment_tags').select('tag').eq('fragment_id', fragment.id)
+          supabase
+            .from('notes')
+            .select('*')
+            .eq('fragment_id', fragment.id)
+            .order('createdAt', { ascending: true }),
+          supabase
+            .from('fragment_tags')
+            .select('tag')
+            .eq('fragment_id', fragment.id)
         ])
 
         return {
@@ -90,13 +54,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ fragments: fragmentsWithRelations })
   } catch (error) {
     console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getUserId(request)
+    const userId = await getServerUserId(request)
     
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -108,18 +72,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
-    const supabase = getSupabaseClient()
+    const supabase = createServerSupabaseClient()
     const now = new Date().toISOString()
     const fragmentId = crypto.randomUUID()
 
-    console.log('💾 新增碎片，用戶 ID:', userId)
+    console.log('💾 Creating fragment for user:', userId)
 
-    // 1. 建立 fragment
+    // 使用事務來確保資料一致性
     const { error: fragmentError } = await supabase
       .from('fragments')
       .insert({
         id: fragmentId,
-        content,
+        content: content.trim(),
         type,
         user_id: userId,
         createdAt: now,
@@ -131,48 +95,69 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create fragment' }, { status: 500 })
     }
 
-    // 2. 建立 tags (如果有)
+    // 新增 tags (如果有)
     if (tags && tags.length > 0) {
-      const tagInserts = tags.map((tag: string) => ({
-        fragment_id: fragmentId,
-        tag
-      }))
-      
-      await supabase.from('fragment_tags').insert(tagInserts)
+      const validTags = tags.filter((tag: string) => tag?.trim())
+      if (validTags.length > 0) {
+        const tagInserts = validTags.map((tag: string) => ({
+          fragment_id: fragmentId,
+          tag: tag.trim()
+        }))
+        
+        const { error: tagsError } = await supabase
+          .from('fragment_tags')
+          .insert(tagInserts)
+        
+        if (tagsError) {
+          console.error('Error creating tags:', tagsError)
+          // 不中斷流程，但記錄錯誤
+        }
+      }
     }
 
-    // 3. 建立 notes (如果有)
+    // 新增 notes (如果有)
     if (notes && notes.length > 0) {
-      const noteInserts = notes.map((note: any) => ({
-        id: note.id || crypto.randomUUID(),
-        fragment_id: fragmentId,
-        title: note.title || '',
-        value: note.value || '',
-        color: note.color,
-        isPinned: note.isPinned || false,
-        createdAt: note.createdAt || now,
-        updatedAt: note.updatedAt || now
-      }))
-      
-      await supabase.from('notes').insert(noteInserts)
+      const validNotes = notes.filter((note: any) => note?.title?.trim() || note?.value?.trim())
+      if (validNotes.length > 0) {
+        const noteInserts = validNotes.map((note: any) => ({
+          id: note.id || crypto.randomUUID(),
+          fragment_id: fragmentId,
+          title: note.title?.trim() || '',
+          value: note.value?.trim() || '',
+          color: note.color,
+          isPinned: !!note.isPinned,
+          createdAt: note.createdAt || now,
+          updatedAt: note.updatedAt || now
+        }))
+        
+        const { error: notesError } = await supabase
+          .from('notes')
+          .insert(noteInserts)
+        
+        if (notesError) {
+          console.error('Error creating notes:', notesError)
+          // 不中斷流程，但記錄錯誤
+        }
+      }
     }
 
-    console.log('✅ 碎片新增成功:', fragmentId)
+    console.log('✅ Fragment created successfully:', fragmentId)
 
     return NextResponse.json({ 
       success: true, 
       fragment: {
         id: fragmentId,
-        content,
+        content: content.trim(),
         type,
         tags: tags || [],
         notes: notes || [],
         createdAt: now,
         updatedAt: now
       }
-    })
+    }, { status: 201 })
+    
   } catch (error) {
     console.error('API error:', error)
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

@@ -7,7 +7,6 @@ class ApiClient {
   private baseUrl = '/api'
 
   private async getAuthHeaders(): Promise<Record<string, string>> {
-    // 始終使用真實認證，不再檢查開發模式
     const supabase = getSupabaseClient()
     if (!supabase) {
       throw new Error('Supabase client not available')
@@ -15,7 +14,7 @@ class ApiClient {
     
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.access_token) {
-      throw new Error('No authentication token')
+      throw new Error('No authentication token available')
     }
     
     return {
@@ -34,10 +33,9 @@ class ApiClient {
         ...authHeaders,
       }
 
-      // 如果有額外的 headers，加入它們
+      // 合併額外的 headers
       if (options.headers) {
-        const optionHeaders = options.headers as Record<string, string>
-        Object.assign(headers, optionHeaders)
+        Object.assign(headers, options.headers)
       }
       
       const config: RequestInit = {
@@ -45,100 +43,157 @@ class ApiClient {
         headers,
       }
 
+      console.log(`🔗 API Request: ${options.method || 'GET'} ${endpoint}`)
+      
       const response = await fetch(url, config)
       
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Network error' }))
-        throw new Error(error.error || `HTTP ${response.status}`)
+        let errorMessage = `HTTP ${response.status}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // 如果無法解析錯誤訊息，使用預設
+        }
+        
+        console.error(`❌ API Error [${endpoint}]:`, errorMessage)
+        throw new Error(errorMessage)
       }
       
-      return response.json()
+      const data = await response.json()
+      console.log(`✅ API Success [${endpoint}]`)
+      return data
+      
     } catch (error) {
-      console.error(`API request failed [${endpoint}]:`, error)
+      console.error(`❌ API request failed [${endpoint}]:`, error)
       throw error
     }
   }
 
   // Fragments API
   async getFragments(): Promise<Fragment[]> {
-    const data = await this.request('/fragments')
-    return data.fragments
+    try {
+      const data = await this.request('/fragments')
+      return data.fragments || []
+    } catch (error) {
+      console.error('Failed to fetch fragments:', error)
+      throw error
+    }
   }
 
   async createFragment(fragment: {
     content: string
-    tags: string[]
-    notes: any[]
+    tags?: string[]
+    notes?: any[]
     type?: string
   }): Promise<Fragment> {
-    const data = await this.request('/fragments', {
-      method: 'POST',
-      body: JSON.stringify(fragment),
-    })
-    return data.fragment
+    try {
+      const data = await this.request('/fragments', {
+        method: 'POST',
+        body: JSON.stringify({
+          content: fragment.content,
+          tags: fragment.tags || [],
+          notes: fragment.notes || [],
+          type: fragment.type || 'fragment'
+        }),
+      })
+      return data.fragment
+    } catch (error) {
+      console.error('Failed to create fragment:', error)
+      throw error
+    }
   }
 
   // Notes API
-  async addNoteToFragment(fragmentId: string, note: any): Promise<boolean> {
+  async addNoteToFragment(fragmentId: string, note: {
+    id?: string
+    title: string
+    value: string
+    color?: string
+    isPinned?: boolean
+  }): Promise<Note> {
     try {
-      await this.request(`/fragments/${fragmentId}/notes`, {
+      const data = await this.request(`/fragments/${fragmentId}/notes`, {
         method: 'POST',
-        body: JSON.stringify(note),
+        body: JSON.stringify({
+          id: note.id || crypto.randomUUID(),
+          title: note.title,
+          value: note.value,
+          color: note.color,
+          isPinned: note.isPinned || false
+        }),
       })
-      return true
+      return data.note
     } catch (error) {
       console.error('Failed to add note:', error)
-      return false
+      throw error
     }
   }
 
-  async updateNote(fragmentId: string, noteId: string, updates: Partial<Note>): Promise<boolean> {
+  async updateNote(
+    fragmentId: string, 
+    noteId: string, 
+    updates: Partial<Note>
+  ): Promise<void> {
     try {
-      await this.request(`/fragments/${fragmentId}/notes/${noteId}`, {
+      await this.request(`/fragments/${fragmentId}/notes`, {
         method: 'PATCH',
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          noteId,
+          ...updates
+        }),
       })
-      return true
     } catch (error) {
       console.error('Failed to update note:', error)
-      return false
+      throw error
     }
   }
 
-  async deleteNote(fragmentId: string, noteId: string): Promise<boolean> {
+  async deleteNote(fragmentId: string, noteId: string): Promise<void> {
     try {
-      await this.request(`/fragments/${fragmentId}/notes/${noteId}`, {
+      await this.request(`/fragments/${fragmentId}/notes?noteId=${noteId}`, {
         method: 'DELETE',
       })
-      return true
     } catch (error) {
       console.error('Failed to delete note:', error)
-      return false
+      throw error
     }
   }
 
   // Tags API  
-  async addTagToFragment(fragmentId: string, tag: string): Promise<boolean> {
+  async addTagToFragment(fragmentId: string, tag: string): Promise<void> {
     try {
       await this.request(`/fragments/${fragmentId}/tags`, {
         method: 'POST',
         body: JSON.stringify({ tag }),
       })
-      return true
     } catch (error) {
       console.error('Failed to add tag:', error)
-      return false
+      throw error
     }
   }
 
-  async removeTagFromFragment(fragmentId: string, tag: string): Promise<boolean> {
+  async removeTagFromFragment(fragmentId: string, tag: string): Promise<void> {
     try {
-      await this.request(`/fragments/${fragmentId}/tags/${encodeURIComponent(tag)}`, {
-        method: 'DELETE',
-      })
-      return true
+      await this.request(
+        `/fragments/${fragmentId}/tags?tag=${encodeURIComponent(tag)}`, 
+        {
+          method: 'DELETE',
+        }
+      )
     } catch (error) {
       console.error('Failed to remove tag:', error)
+      throw error
+    }
+  }
+
+  // 健康檢查
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this.getFragments()
+      return true
+    } catch (error) {
+      console.error('Health check failed:', error)
       return false
     }
   }
