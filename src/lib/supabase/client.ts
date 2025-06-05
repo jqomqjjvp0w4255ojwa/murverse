@@ -15,7 +15,7 @@ export function getSupabaseClient(): SupabaseClient | null {
   
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    console.log('🔍 Debug env vars:', {
+    console.log('🔍 Debug env vars:', { 
       url: !!supabaseUrl,
       key: !!supabaseAnonKey,
       urlValue: supabaseUrl?.substring(0, 30) + '...',
