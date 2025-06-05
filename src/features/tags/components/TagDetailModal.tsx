@@ -45,6 +45,7 @@ const TagDetailModal: React.FC<TagDetailModalProps> = ({
     return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
   };
 
+
   // 尋找相似標籤 - 修正：傳入 fragments 和 tag 參數
   const similarTags = TagsService.findSimilarTagsByCooccurrence(tag, fragments, 5);
 
