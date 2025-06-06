@@ -187,6 +187,19 @@ class ApiClient {
     }
   }
 
+  // 🎯 新增：刪除碎片方法（添加到 createFragment 方法後面）
+async deleteFragment(fragmentId: string): Promise<void> {
+  try {
+    await this.request(`/fragments/${fragmentId}`, {
+      method: 'DELETE',
+    })
+    console.log(`✅ 成功刪除碎片: ${fragmentId}`)
+  } catch (error) {
+    console.error('Failed to delete fragment:', error)
+    throw error
+  }
+}
+
   // 健康檢查
   async healthCheck(): Promise<boolean> {
     try {

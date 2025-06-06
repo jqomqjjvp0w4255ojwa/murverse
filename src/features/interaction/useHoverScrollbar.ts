@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 
 /**
- * useHoverScrollbar
+ *C:\Users\user\murverse\src\features\interaction\useHoverScrollbar.ts
  * 
  * 偵測滑鼠是否靠近容器右側，用於顯示捲軸樣式。
  * 

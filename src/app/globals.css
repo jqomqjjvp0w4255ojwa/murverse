@@ -288,3 +288,15 @@ textarea.scrollbar-invisible::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
 }
+
+/* === 小毛球顯示控制（跟隨卡片 hover）=== */
+.fragment-card .fuzzy-ball-button {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.fragment-card:hover .fuzzy-ball-button {
+  opacity: 1;
+  pointer-events: auto;
+}

@@ -1,4 +1,4 @@
-// FragmentsGridView.tsx（移除重複滾動條設定）
+// FragmentsGridView.tsx（更新導入路徑並使用重構後的組件）
 'use client'
 
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
@@ -14,7 +14,8 @@ import {
   GridPosition,
   RelevanceMap 
 } from '@/features/fragments/types/gridTypes'
-import FragmentCard from './FragmentCard'
+// 🎯 更新導入路徑：使用重構後的 GridFragmentCard
+import { GridFragmentCard } from './card'
 import FragmentDetailModal from './FragmentDetailModal'
 import { 
   useLayoutFragments, 
@@ -90,6 +91,46 @@ export default function FragmentsGridView({
         border-radius: 4px;
         border: 1px solid #f9f6e9;
       }
+      
+      /* 🎯 新增：卡片內部的 hover scrollbar 樣式 */
+      .hover-scrollbar-hidden::-webkit-scrollbar {
+        width: 0;
+        background: transparent;
+        transition: width 0.2s ease;
+      }
+
+      .hover-scrollbar-hidden::-webkit-scrollbar-thumb {
+        background: transparent;
+      }
+
+      .hover-scrollbar-visible::-webkit-scrollbar {
+        width: 6px;
+        transition: width 0.2s ease;
+      }
+
+      .hover-scrollbar-visible::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .hover-scrollbar-visible::-webkit-scrollbar-thumb {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+        transition: background 0.2s ease;
+      }
+
+      .hover-scrollbar-visible::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 0, 0, 0.4);
+      }
+
+      /* Firefox 滾動條樣式 */
+      .hover-scrollbar-hidden {
+        scrollbar-width: none;
+      }
+
+      .hover-scrollbar-visible {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+      }
     `;
     }
     
@@ -112,15 +153,15 @@ export default function FragmentsGridView({
   const isInitialLoadRef = useRef(true)
 
   const handleLogin = () => {
-  window.location.href = '/login'
-}
+    window.location.href = '/login'
+  }
   
   const [user, setUser] = useState<any>(null)
   useEffect(() => {
-  const supabase = getSupabaseClient()
-  if (!supabase) return
+    const supabase = getSupabaseClient()
+    if (!supabase) return
 
-  supabase.auth.getUser().then(({ data }) => setUser(data.user))
+    supabase.auth.getUser().then(({ data }) => setUser(data.user))
   }, [])
   
   // 使用 hover scrollbar hook
@@ -133,6 +174,8 @@ export default function FragmentsGridView({
   const refreshView = useCallback(() => {
     forceUpdate({});
   }, []);
+
+  
 
   useEffect(() => {
     if (resetLayout) {
@@ -351,6 +394,7 @@ export default function FragmentsGridView({
         }, 16);
       }
     };
+  
 
     const stopDragScroll = () => {
       if (scrollInterval) {
@@ -483,74 +527,85 @@ export default function FragmentsGridView({
           }}
         >
           {gridFragments.length === 0 ? (
-          <div
-          className="no-fragments-message"
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px 20px',
-            color: '#8a7b5a',
-            fontSize: '16px',
-            backgroundColor: 'rgba(255, 252, 245, 0.85)',
-            borderRadius: '12px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            backdropFilter: 'blur(5px)',
-            maxWidth: '300px',
-            textAlign: 'center'
-          }}
-        >
-          {!user ? (
-            <>
-              <div style={{ marginBottom: '16px' }}>請先登入以查看碎片</div>
-              <button
-                onClick={handleLogin}
-                className="flex items-center justify-center w-10 h-10 rounded-full border border-[#d1b684] bg-[#f9f6e9] hover:shadow-lg transition"
-                title="使用 Google 登入"
-              >
-                <img
-                  src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                  alt="Google G"
-                  className="w-5 h-5"
-                />
-              </button>
-            </>
+            <div
+              className="no-fragments-message"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '40px 20px',
+                color: '#8a7b5a',
+                fontSize: '16px',
+                backgroundColor: 'rgba(255, 252, 245, 0.85)',
+                borderRadius: '12px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                backdropFilter: 'blur(5px)',
+                maxWidth: '300px',
+                textAlign: 'center'
+              }}
+            >
+              {!user ? (
+                <>
+                  <div style={{ marginBottom: '16px' }}>請先登入以查看碎片</div>
+                  <button
+                    onClick={handleLogin}
+                    className="flex items-center justify-center w-10 h-10 rounded-full border border-[#d1b684] bg-[#f9f6e9] hover:shadow-lg transition"
+                    title="使用 Google 登入"
+                  >
+                    <img
+                      src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                      alt="Google G"
+                      className="w-5 h-5"
+                    />
+                  </button>
+                </>
+              ) : (
+                <>暫無碎片。請使用頂部的輸入框添加新碎片。</>
+              )}
+            </div>
           ) : (
-            <>暫無碎片。請使用頂部的輸入框添加新碎片。</>
+            gridFragments
+              .filter(fragment => fragment.position)
+              .map(fragment => (
+                // 🎯 使用重構後的 GridFragmentCard
+                <GridFragmentCard
+                key={fragment.id}
+                fragment={fragment}
+                isSelected={selectedFragment?.id === fragment.id}
+                isDragging={isDragging(fragment.id)}
+                dragPosition={dragPosition}
+                isValidDragTarget={isValidDragTarget}
+                previewPosition={previewRelocations[fragment.id]}
+                validationState={draggingId === fragment.id ? validationState : 'valid'}
+                onFragmentClick={handleFragmentClick}
+                onDragStart={handleDragStart}
+                onTagClick={(tag, frag) => {
+                  console.log('🟡 點擊標籤:', tag, '來自 fragment:', frag.id)
+                }}
+                onTagDragStart={(e, tag, frag) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  startTagDrag(tag, e)
+                  console.log('🟠 開始拖曳標籤:', tag, '來自 fragment:', frag.id)
+                }}
+                // ✅ 可選：添加自定義的刪除處理
+                onDelete={(fragment) => {
+                  // 自定義刪除邏輯，例如更新本地位置記錄
+                  setPositions(prev => {
+                    const updated = { ...prev }
+                    delete updated[fragment.id]
+                    localStorage.setItem('fragment_positions', JSON.stringify(updated))
+                    return updated
+                  })
+                }}
+              />
+              ))
           )}
-        </div>
-        ) : (
-  gridFragments
-    .filter(fragment => fragment.position)
-    .map(fragment => (
-      <FragmentCard
-        key={fragment.id}
-        fragment={fragment}
-        isSelected={selectedFragment?.id === fragment.id}
-        isDragging={isDragging(fragment.id)}
-        dragPosition={dragPosition}
-        isValidDragTarget={isValidDragTarget}
-        previewPosition={previewRelocations[fragment.id]}
-        validationState={draggingId === fragment.id ? validationState : 'valid'}
-        onFragmentClick={handleFragmentClick}
-        onDragStart={handleDragStart}
-        onTagClick={(tag, frag) => {
-          console.log('🟡 點擊標籤:', tag, '來自 fragment:', frag.id)
-        }}
-        onTagDragStart={(e, tag, frag) => {
-          e.preventDefault()
-          e.stopPropagation()
-          startTagDrag(tag, e)
-          console.log('🟠 開始拖曳標籤:', tag, '來自 fragment:', frag.id)
-        }}
-      />
-    ))
-)}
         </div>
          
         {/* 詳情彈窗 */}

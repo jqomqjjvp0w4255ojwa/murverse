@@ -53,6 +53,7 @@ interface FragmentsState {
 
   // Fragment 操作 - 修正為正確的 API 呼叫
   addFragment: (content: string, tags: string[], notes: Note[]) => Promise<void>
+  deleteFragment: (fragmentId: string) => Promise<void> 
   addNoteToFragment: (fragmentId: string, note: Note) => Promise<void>
   updateNoteInFragment: (fragmentId: string, noteId: string, updates: Partial<Note>) => Promise<void>
   removeNoteFromFragment: (fragmentId: string, noteId: string) => Promise<void>
@@ -63,6 +64,8 @@ interface FragmentsState {
 
 // 檢查是否在客戶端環境
 const isClient = typeof window !== 'undefined'
+
+// 📄 修復後的 useFragmentsStore.ts
 
 export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   fragments: [],
@@ -213,6 +216,36 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to add fragment'
       console.error('Failed to add fragment:', error)
+      set({ error: errorMessage })
+      throw error
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  /**
+   * 🎯 刪除碎片 - 移到正確位置
+   */
+  deleteFragment: async (fragmentId) => {
+    if (!isClient) return
+    
+    set({ isLoading: true, error: null })
+    
+    try {
+      // 呼叫 API 刪除碎片
+      await apiClient.deleteFragment(fragmentId)
+      
+      // 從本地狀態移除碎片
+      set(state => ({
+        fragments: state.fragments.filter(f => f.id !== fragmentId),
+        selectedFragment: state.selectedFragment?.id === fragmentId ? null : state.selectedFragment,
+        error: null
+      }))
+      
+      console.log(`✅ 成功刪除碎片 ${fragmentId}`)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete fragment'
+      console.error('Failed to delete fragment:', error)
       set({ error: errorMessage })
       throw error
     } finally {
@@ -383,4 +416,5 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
       throw error
     }
   },
+
 }))
