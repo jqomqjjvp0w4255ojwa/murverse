@@ -42,15 +42,19 @@ const FragmentNotes = ({
       }}
     >
       {fragment.notes[0]?.title && (
-        <div style={{
-          fontSize: '11px',
-          fontWeight: 'bold',
-          color: '#333',
-          marginBottom: '2px',
-        }}>
-          {fragment.notes[0].title}
-        </div>
-      )}
+      <div style={{
+        fontSize: '11px',
+        fontWeight: 'bold',
+        color: '#333',
+        marginBottom: '2px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        maxWidth: '100%',
+      }}>
+        {fragment.notes[0].title}
+      </div>
+    )}
       <div
         style={{
           overflow: 'hidden',

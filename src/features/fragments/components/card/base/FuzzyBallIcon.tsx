@@ -1,41 +1,50 @@
 import React from 'react'
+import classNames from 'classnames'
 
 interface FuzzyBallIconProps {
   size?: number
   color?: string
   isHovered?: boolean
+  variant?: 'none' | 'breathe' | 'pulse' | 'hoverScale'
 }
 
 const FuzzyBallIcon: React.FC<FuzzyBallIconProps> = ({
   size = 16,
   color = '#d1b684',
-  isHovered = false
+  isHovered = false,
+  variant = 'none'
 }) => {
   const lineCount = 12
   const radius = size * 0.5
   const innerRadius = radius * 0.6
   const outerRadius = radius
-  const lineLength = outerRadius - innerRadius
+  const baseLength = outerRadius - innerRadius
+  const expandedLength = baseLength + 1.5
+
+  const containerClass = classNames({
+    'fuzzy-breathe': variant === 'breathe' && isHovered,
+    'fuzzy-pulse': variant === 'pulse' && isHovered,
+    'fuzzy-hover': variant === 'hoverScale' && isHovered,
+  })
 
   return (
     <div
+      className={containerClass}
       style={{
         width: `${size}px`,
         height: `${size}px`,
         position: 'relative',
-        transform: isHovered ? 'scale(1.3) rotate(5deg)' : 'scale(1) rotate(0)',
-        transition: 'transform 0.3s cubic-bezier(0.33, 1, 0.68, 1)', // 🌀 蓬鬆感
+        transition: 'transform 0.3s ease',
       }}
     >
       {[...Array(lineCount)].map((_, i) => {
         const angle = (360 / lineCount) * i
-
         return (
           <div
             key={i}
             style={{
               position: 'absolute',
-              width: isHovered ? `${lineLength + 1}px` : `${lineLength}px`,
+              width: `${isHovered ? expandedLength : baseLength}px`,
               height: isHovered ? '1.5px' : '1px',
               backgroundColor: color,
               top: '50%',

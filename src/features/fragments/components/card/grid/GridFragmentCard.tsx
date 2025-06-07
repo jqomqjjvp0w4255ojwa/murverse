@@ -348,47 +348,19 @@ const GridFragmentCard = ({
     </>
   )
   
-  return (
-    <div
-      ref={observerRef}
-      data-fragment-id={fragment.id}
-      onClick={() => onFragmentClick(fragment)}
-      onMouseDown={(e) => onDragStart(e, fragment)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`fragment-card ${isDragging ? 'is-dragging' : ''} ${previewPosition ? 'is-previewing' : ''}`}
-      style={{
-        position: 'absolute',
-        top: `${top}px`,
-        left: `${left}px`,
-        width: `${width}px`,
-        height: `${height}px`,
-        padding: '12px',
-        backgroundColor: '#fffbef',
-        borderRadius: '10px',
-        boxShadow,
-        border: previewPosition ? '1px solid rgba(50, 120, 200, 0.3)' : '1px solid rgba(0, 0, 0, 0.05)',
-        transform: isSelected && !isDragging ? 'scale(1.02)' : 'none',
-        cursor: isDragging ? 'grabbing' : 'grab',
-
-        display: 'flex',
-        flexDirection: fragment.direction === 'vertical' ? 'row' : 'column',
-        transition: transitionStyle,
-        zIndex,
-        opacity: isDragging ? (validationState === 'valid' ? 1 : 0.4) : 1
-      }}
-    >
-      {/* 小毛球圖示 - 以卡片右上角為中心點 */}
-      <button
-        onClick={handleFuzzyBallClick}
-        className="fuzzy-ball-button"
-        onMouseEnter={() => setIsFuzzyHovered(true)}
-        onMouseLeave={() => setIsFuzzyHovered(false)}
-        style={{
+      return (
+      <div style={{ position: 'absolute', top: `${top}px`, left: `${left}px` }}>
+        {/* 小毛球圖示 - 脫離卡片 overflow 限制 */}
+        <button
+          onClick={handleFuzzyBallClick}
+          className="fuzzy-ball-button"
+          onMouseEnter={() => setIsFuzzyHovered(true)}
+          onMouseLeave={() => setIsFuzzyHovered(false)}
+          style={{
             position: 'absolute',
             top: '0',
             right: '0',
-            width: '50px', // 原本是 18px，現在放大感應範圍
+            width: '50px',
             height: '50px',
             background: 'transparent',
             border: 'none',
@@ -402,71 +374,95 @@ const GridFragmentCard = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-        }}
-        title="卡片選項"
+          }}
+          title="卡片選項"
         >
-        <FuzzyBallIcon size={18} isHovered={isFuzzyHovered} />
+          <FuzzyBallIcon size={18} isHovered={isFuzzyHovered} variant="breathe" />
         </button>
 
-      
-      {fragment.direction === 'vertical' ? renderVerticalLayout() : renderHorizontalLayout()}
-      
-      {/* 日期顯示 */}
-      {isSelected && (
-        <div 
+        {/* 卡片本體 */}
+        <div
+          ref={observerRef}
+          data-fragment-id={fragment.id}
+          onClick={() => onFragmentClick(fragment)}
+          onMouseDown={(e) => onDragStart(e, fragment)}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          className={`fragment-card ${isDragging ? 'is-dragging' : ''} ${previewPosition ? 'is-previewing' : ''}`}
           style={{
-            position: 'absolute',
-            bottom: '4px',
-            right: '6px',
-            fontSize: '9px',
-            color: '#aaa',
-            writingMode: fragment.direction === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
+            width: `${width}px`,
+            height: `${height}px`,
+            padding: '12px',
+            backgroundColor: '#fffbef',
+            borderRadius: '10px',
+            boxShadow,
+            overflow: 'hidden',
+            border: previewPosition ? '1px solid rgba(50, 120, 200, 0.3)' : '1px solid rgba(0, 0, 0, 0.05)',
+            transform: isSelected && !isDragging ? 'scale(1.02)' : 'none',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            display: 'flex',
+            flexDirection: fragment.direction === 'vertical' ? 'row' : 'column',
+            transition: transitionStyle,
+            zIndex,
+            opacity: isDragging ? (validationState === 'valid' ? 1 : 0.4) : 1,
+            position: 'relative'
           }}
         >
-          {formatDate(fragment.createdAt)}
-        </div>
-      )}
-      
-      {/* 標籤操作環 */}
-      {clickedTag && tagActionPosition && (
-        <TagActionRing
-          tag={clickedTag}
-          position={tagActionPosition}
-          onClose={() => {
-            setClickedTag(null)
-            setTagActionPosition(null)
-          }}
-          onOpenDetail={(tag) => {
-            setDetailTag(tag)
-            setShowTagDetail(true)
-            setClickedTag(null)
-            setTagActionPosition(null)
-          }}
-          fragmentId={fragment.id}
-        />
-      )}
+          {fragment.direction === 'vertical' ? renderVerticalLayout() : renderHorizontalLayout()}
 
-      {/* 標籤詳情彈窗 */}
-      {showTagDetail && detailTag && (
-        <TagDetailModal
-          tag={detailTag}
-          relatedFragments={TagsService.findFragmentsByTag(fragments, detailTag)}
-          onClose={handleCloseTagDetail}
-        />
-      )}
-      
-      {/* 碎片行動環 */}
-      {showFragmentActionRing && fragmentActionPosition && (
-        <FragmentActionRing
-          fragment={fragment}
-          position={fragmentActionPosition}
-          onClose={() => setShowFragmentActionRing(false)}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-      )}
-    </div>
-  )
+          {isSelected && (
+            <div 
+              style={{
+                position: 'absolute',
+                bottom: '4px',
+                right: '6px',
+                fontSize: '9px',
+                color: '#aaa',
+                writingMode: fragment.direction === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
+              }}
+            >
+              {formatDate(fragment.createdAt)}
+            </div>
+          )}
+
+          {clickedTag && tagActionPosition && (
+            <TagActionRing
+              tag={clickedTag}
+              position={tagActionPosition}
+              onClose={() => {
+                setClickedTag(null)
+                setTagActionPosition(null)
+              }}
+              onOpenDetail={(tag) => {
+                setDetailTag(tag)
+                setShowTagDetail(true)
+                setClickedTag(null)
+                setTagActionPosition(null)
+              }}
+              fragmentId={fragment.id}
+            />
+          )}
+
+          {showTagDetail && detailTag && (
+            <TagDetailModal
+              tag={detailTag}
+              relatedFragments={TagsService.findFragmentsByTag(fragments, detailTag)}
+              onClose={handleCloseTagDetail}
+            />
+          )}
+
+          {showFragmentActionRing && fragmentActionPosition && (
+            <FragmentActionRing
+              fragment={fragment}
+              position={fragmentActionPosition}
+              onClose={() => setShowFragmentActionRing(false)}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          )}
+        </div>
+      </div>
+    )
 }
 
 export default GridFragmentCard

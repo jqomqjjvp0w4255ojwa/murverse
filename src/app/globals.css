@@ -300,3 +300,45 @@ textarea.scrollbar-invisible::-webkit-scrollbar {
   opacity: 1;
   pointer-events: auto;
 }
+
+@keyframes fuzzyBreathe {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.fuzzy-breathe {
+  animation: fuzzyBreathe 1.8s ease-in-out infinite;
+}
+@keyframes fuzzyBreathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.25);
+  }
+}
+
+@keyframes fuzzyPulse {
+  0% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.8;
+  }
+}
+
+.fuzzy-breathe {
+  animation: fuzzyBreathe 1.5s ease-in-out infinite;
+}
+
+.fuzzy-pulse {
+  animation: fuzzyPulse 1s ease-in-out infinite;
+}
+
+.fuzzy-hover {
+  transform: scale(1.2);
+}

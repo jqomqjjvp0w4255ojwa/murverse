@@ -30,11 +30,11 @@ export async function saveFragmentPositionToSupabase(fragmentId: string, positio
       .from('fragment_positions')
       .upsert({
         fragment_id: fragmentId,
-        user_id: userId, // 加入用戶 ID
+        user_id: userId,
         row: position.row,
         col: position.col,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'fragment_id' }) // 暫時使用單一主鍵，直到資料庫更新
+      }, { onConflict: 'fragment_id,user_id' }) // <<<<< 關鍵修正在這
 
     if (error) {
       console.error(`❌ 雲端儲存位置失敗 fragment: ${fragmentId}`, error)

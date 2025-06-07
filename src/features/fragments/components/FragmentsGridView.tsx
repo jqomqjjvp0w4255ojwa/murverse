@@ -593,16 +593,7 @@ export default function FragmentsGridView({
                   startTagDrag(tag, e)
                   console.log('🟠 開始拖曳標籤:', tag, '來自 fragment:', frag.id)
                 }}
-                // ✅ 可選：添加自定義的刪除處理
-                onDelete={(fragment) => {
-                  // 自定義刪除邏輯，例如更新本地位置記錄
-                  setPositions(prev => {
-                    const updated = { ...prev }
-                    delete updated[fragment.id]
-                    localStorage.setItem('fragment_positions', JSON.stringify(updated))
-                    return updated
-                  })
-                }}
+           
               />
               ))
           )}
