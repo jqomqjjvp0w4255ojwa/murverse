@@ -61,7 +61,7 @@ const FragmentNotes = ({
           textOverflow: 'ellipsis',
           display: '-webkit-box',
           WebkitBoxOrient: 'vertical',
-          WebkitLineClamp: showMoreNote ? 'unset' : 10,
+          WebkitLineClamp: showMoreNote ? 'unset' : layout === 'vertical' ? 10 : 0,
           whiteSpace: showMoreNote ? 'normal' : 'pre-line',
         }}
       >

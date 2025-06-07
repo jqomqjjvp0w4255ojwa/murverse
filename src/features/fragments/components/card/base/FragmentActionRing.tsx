@@ -86,6 +86,7 @@ const FragmentActionRing: React.FC<FragmentActionRingProps> = ({
 
   return (
     <ActionRing
+    
       title={getFragmentTitle()}
       position={position}
       options={options}

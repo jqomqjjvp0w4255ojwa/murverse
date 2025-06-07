@@ -4,7 +4,7 @@
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
 import TagDragPreview from './TagDragPreview'
 import { useHoverScrollbar } from '@/features/interaction/useHoverScrollbar'
-
+import FuzzyBallIcon from '@/features/fragments/components/card/base/FuzzyBallIcon'
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
 import { Fragment } from '@/features/fragments/types/fragment'
@@ -14,7 +14,7 @@ import {
   GridPosition,
   RelevanceMap 
 } from '@/features/fragments/types/gridTypes'
-// 🎯 更新導入路徑：使用重構後的 GridFragmentCard
+// 🔧 修復：使用重構後的 GridFragmentCard
 import { GridFragmentCard } from './card'
 import FragmentDetailModal from './FragmentDetailModal'
 import { 
@@ -51,97 +51,7 @@ export default function FragmentsGridView({
   resetLayout = false
 }: FragmentsGridViewProps) {
 
-  // 統一的滾動條樣式設定 - 只設定一次
-  useEffect(() => {
-    const styleId = 'fragments-grid-scrollbar-styles';
-    let styleElement = document.getElementById(styleId) as HTMLStyleElement;
-    
-    if (!styleElement) {
-      styleElement = document.createElement('style');
-      styleElement.id = styleId;
-      document.head.appendChild(styleElement);
-      
-      styleElement.textContent = `
-      .fragments-grid-container {
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-        transition: scrollbar-width 0.3s ease;
-      }
-      
-      .fragments-grid-container::-webkit-scrollbar {
-        width: 0px;
-      }
-      
-      .fragments-grid-container.show-scrollbar {
-        scrollbar-width: thin;
-        scrollbar-color: #d1b684 #f9f6e9;
-      }
-      
-      .fragments-grid-container.show-scrollbar::-webkit-scrollbar {
-        width: 8px;
-      }
-      
-      .fragments-grid-container.show-scrollbar::-webkit-scrollbar-track {
-        background: #f9f6e9;
-        border-radius: 4px;
-      }
-      
-      .fragments-grid-container.show-scrollbar::-webkit-scrollbar-thumb {
-        background: rgb(255, 255, 255);
-        border-radius: 4px;
-        border: 1px solid #f9f6e9;
-      }
-      
-      /* 🎯 新增：卡片內部的 hover scrollbar 樣式 */
-      .hover-scrollbar-hidden::-webkit-scrollbar {
-        width: 0;
-        background: transparent;
-        transition: width 0.2s ease;
-      }
-
-      .hover-scrollbar-hidden::-webkit-scrollbar-thumb {
-        background: transparent;
-      }
-
-      .hover-scrollbar-visible::-webkit-scrollbar {
-        width: 6px;
-        transition: width 0.2s ease;
-      }
-
-      .hover-scrollbar-visible::-webkit-scrollbar-track {
-        background: transparent;
-      }
-
-      .hover-scrollbar-visible::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.2);
-        border-radius: 3px;
-        transition: background 0.2s ease;
-      }
-
-      .hover-scrollbar-visible::-webkit-scrollbar-thumb:hover {
-        background: rgba(0, 0, 0, 0.4);
-      }
-
-      /* Firefox 滾動條樣式 */
-      .hover-scrollbar-hidden {
-        scrollbar-width: none;
-      }
-
-      .hover-scrollbar-visible {
-        scrollbar-width: thin;
-        scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
-      }
-    `;
-    }
-    
-    // 清理函數
-    return () => {
-      const element = document.getElementById(styleId);
-      if (element) {
-        element.remove();
-      }
-    };
-  }, []); // 空依賴陣列，只執行一次
+  
 
   const isTagDraggingRef = useRef(false)
   const { setSelectedFragment } = useFragmentsStore()
@@ -151,6 +61,7 @@ export default function FragmentsGridView({
   const [, forceUpdate] = useState({})
   const containerRef = useRef<HTMLDivElement>(null)
   const isInitialLoadRef = useRef(true)
+  const [hasTriedLoading, setHasTriedLoading] = useState(false)
 
   const handleLogin = () => {
     window.location.href = '/login'
@@ -174,6 +85,13 @@ export default function FragmentsGridView({
   const refreshView = useCallback(() => {
     forceUpdate({});
   }, []);
+
+  useEffect(() => {
+  // 嘗試過一次後就不再顯示 loading（即使空資料）
+  if (!hasTriedLoading && fragments) {
+    setHasTriedLoading(true)
+  }
+}, [fragments])
 
   
 
@@ -498,7 +416,7 @@ export default function FragmentsGridView({
         </button>
       </div>
 
-      {/* 簡化的碎片網格容器 - 只保留必要樣式 */}
+      {/* 🔧 修復：使用 globals.css 中定義的統一樣式類 */}
       <div 
         ref={containerRef}
         className={`fragments-grid-container ${showScrollbar ? 'show-scrollbar' : ''}`}
@@ -526,77 +444,106 @@ export default function FragmentsGridView({
             width: '100%'
           }}
         >
-          {gridFragments.length === 0 ? (
-            <div
-              className="no-fragments-message"
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '40px 20px',
-                color: '#8a7b5a',
-                fontSize: '16px',
-                backgroundColor: 'rgba(255, 252, 245, 0.85)',
-                borderRadius: '12px',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                backdropFilter: 'blur(5px)',
-                maxWidth: '300px',
-                textAlign: 'center'
-              }}
-            >
-              {!user ? (
-                <>
-                  <div style={{ marginBottom: '16px' }}>請先登入以查看碎片</div>
-                  <button
-                    onClick={handleLogin}
-                    className="flex items-center justify-center w-10 h-10 rounded-full border border-[#d1b684] bg-[#f9f6e9] hover:shadow-lg transition"
-                    title="使用 Google 登入"
-                  >
-                    <img
-                      src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
-                      alt="Google G"
-                      className="w-5 h-5"
-                    />
-                  </button>
-                </>
+          {/* 🔁 根據狀態顯示 Loading / 空狀態 / 正常碎片清單 */}
+            {gridFragments.length === 0 ? (
+              !hasTriedLoading ? (
+                // 🌀 載入中：顯示動畫
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '40px 20px',
+                    color: '#8a7b5a',
+                    fontSize: '16px',
+                    backgroundColor: 'rgba(255, 252, 245, 0.85)',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    backdropFilter: 'blur(5px)',
+                    maxWidth: '300px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <FuzzyBallIcon size={40} variant="sway" />
+                  <div style={{ marginTop: '12px' }}>載入碎片中...</div>
+                </div>
               ) : (
-                <>暫無碎片。請使用頂部的輸入框添加新碎片。</>
-              )}
-            </div>
-          ) : (
-            gridFragments
-              .filter(fragment => fragment.position)
-              .map(fragment => (
-                // 🎯 使用重構後的 GridFragmentCard
-                <GridFragmentCard
-                key={fragment.id}
-                fragment={fragment}
-                isSelected={selectedFragment?.id === fragment.id}
-                isDragging={isDragging(fragment.id)}
-                dragPosition={dragPosition}
-                isValidDragTarget={isValidDragTarget}
-                previewPosition={previewRelocations[fragment.id]}
-                validationState={draggingId === fragment.id ? validationState : 'valid'}
-                onFragmentClick={handleFragmentClick}
-                onDragStart={handleDragStart}
-                onTagClick={(tag, frag) => {
-                  console.log('🟡 點擊標籤:', tag, '來自 fragment:', frag.id)
-                }}
-                onTagDragStart={(e, tag, frag) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  startTagDrag(tag, e)
-                  console.log('🟠 開始拖曳標籤:', tag, '來自 fragment:', frag.id)
-                }}
-           
-              />
-              ))
-          )}
+                // 🙅‍ 無碎片：登入 or 空提示
+                <div
+                  className="no-fragments-message"
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '40px 20px',
+                    color: '#8a7b5a',
+                    fontSize: '16px',
+                    backgroundColor: 'rgba(255, 252, 245, 0.85)',
+                    borderRadius: '12px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    backdropFilter: 'blur(5px)',
+                    maxWidth: '300px',
+                    textAlign: 'center'
+                  }}
+                >
+                  {!user ? (
+                    <>
+                      <div style={{ marginBottom: '16px' }}>請先登入以查看碎片</div>
+                      <button
+                        onClick={handleLogin}
+                        className="flex items-center justify-center w-10 h-10 rounded-full border border-[#d1b684] bg-[#f9f6e9] hover:shadow-lg transition"
+                        title="使用 Google 登入"
+                      >
+                        <img
+                          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                          alt="Google G"
+                          className="w-5 h-5"
+                        />
+                      </button>
+                    </>
+                  ) : (
+                    <>暫無碎片。請使用頂部的輸入框添加新碎片。</>
+                  )}
+                </div>
+              )
+            ) : (
+              // ✅ 正常顯示碎片清單
+              gridFragments
+                .filter(fragment => fragment.position)
+                .map(fragment => (
+                  <GridFragmentCard
+                    key={fragment.id}
+                    fragment={fragment}
+                    isSelected={selectedFragment?.id === fragment.id}
+                    isDragging={isDragging(fragment.id)}
+                    dragPosition={draggingId === fragment.id ? dragPosition : { top: 0, left: 0 }}
+                    isValidDragTarget={isValidDragTarget}
+                    previewPosition={previewRelocations[fragment.id]}
+                    validationState={draggingId === fragment.id ? validationState : 'valid'}
+                    onFragmentClick={handleFragmentClick}
+                    onDragStart={handleDragStart}
+                    onTagClick={(tag, frag) => {
+                      console.log('🟡 點擊標籤:', tag, '來自 fragment:', frag.id)
+                    }}
+                    onTagDragStart={(e, tag, frag) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      startTagDrag(tag, e)
+                      console.log('🟠 開始拖曳標籤:', tag, '來自 fragment:', frag.id)
+                    }}
+                  />
+                ))
+            )}
         </div>
          
         {/* 詳情彈窗 */}

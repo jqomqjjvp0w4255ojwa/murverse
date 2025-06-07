@@ -16,6 +16,9 @@ import TagDetailModal from '@/features/tags/components/TagDetailModal'
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
 import { TagsService } from '@/features/tags/services/TagsService'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
+import { useHoverScrollbar } from '@/features/interaction/useHoverScrollbar'
+import FailedFragmentActionRing from '../base/FailedFragmentActionRing'
+import { getFragmentStatus } from '@/features/fragments/types/fragment'
 
 // 導入拆分的基礎組件
 import { 
@@ -48,7 +51,7 @@ interface GridFragmentCardProps {
   onDelete?: (fragment: GridFragment) => void
 }
 
-// 自定義 hooks (保持不變)
+// 自定義 hooks
 const useCardDimensions = (fragment: GridFragment, isDragging: boolean, dragPosition: PixelPosition, previewPosition?: GridPosition) => {
   return useMemo(() => {
     const effectivePosition = previewPosition || fragment.position
@@ -123,13 +126,14 @@ const GridFragmentCard = ({
   onEdit,
   onDelete,
 }: GridFragmentCardProps) => {
+  // 🔧 修復：統一使用單一的 hover 狀態
+  const [isHovered, setIsHovered] = useState(false)
+  const [isFuzzyHovered, setIsFuzzyHovered] = useState(false)
+  
   // 狀態管理
   const [showMoreContent, setShowMoreContent] = useState(false)
   const [showMoreNote, setShowMoreNote] = useState(false)
-  const [isHovered, setIsHovered] = useState(false)
   
-
-
   // 標籤相關狀態
   const [clickedTag, setClickedTag] = useState<string | null>(null)
   const [tagActionPosition, setTagActionPosition] = useState<{ x: number; y: number } | null>(null)
@@ -139,8 +143,7 @@ const GridFragmentCard = ({
   // 碎片行動環相關狀態
   const [showFragmentActionRing, setShowFragmentActionRing] = useState(false)
   const [fragmentActionPosition, setFragmentActionPosition] = useState<{ x: number; y: number } | null>(null)
-  const [isFuzzyHovered, setIsFuzzyHovered] = useState(false)
-
+  
   // 外部依賴
   const { startTagDrag, wasDraggingRef } = useTagDragManager()
   const { fragments, deleteFragment } = useFragmentsStore()
@@ -159,6 +162,10 @@ const GridFragmentCard = ({
   // 判斷是否需要展開按鈕
   const needContentExpand = fragment.content.length > maxVisibleChars
   const needNoteExpand = noteText.length > estimatedNoteChars
+
+  // 為內容區域和筆記區域分別創建 hover scrollbar
+  const contentScrollbar = useHoverScrollbar(15)
+  const noteScrollbar = useHoverScrollbar(15)
   
   // 事件處理
   const handleTagClick = useCallback((tagName: string, e: React.MouseEvent) => {
@@ -171,15 +178,31 @@ const GridFragmentCard = ({
       setDetailTag(null)
     }
     
-    const rect = e.currentTarget.getBoundingClientRect()
+    const tagRect = e.currentTarget.getBoundingClientRect()
     setClickedTag(tagName)
     setTagActionPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top
+      x: tagRect.left + tagRect.width / 2,
+      y: tagRect.top
     })
     
     onTagClick?.(tagName, fragment)
   }, [wasDraggingRef, showTagDetail, onTagClick, fragment])
+
+  const fragmentStatus = getFragmentStatus(fragment)
+  const { isNormal, isLoading, isFailed, showSpecialIcon, iconVariant } = fragmentStatus
+
+  const [showFailedActionRing, setShowFailedActionRing] = useState(false)
+  const [failedActionPosition, setFailedActionPosition] = useState<{ x: number; y: number } | null>(null)
+
+  const { retryOperation, abandonOperation } = useFragmentsStore()
+
+  const handleRetry = useCallback((fragmentId: string) => {
+    retryOperation(fragmentId)
+  }, [retryOperation])
+
+  const handleAbandon = useCallback((fragmentId: string) => {
+    abandonOperation(fragmentId)
+  }, [abandonOperation])
   
   const handleTagDragStart = useCallback((e: React.MouseEvent, tagName: string) => {
     e.stopPropagation()
@@ -206,14 +229,21 @@ const GridFragmentCard = ({
   
   // 碎片行動環處理
   const handleFuzzyBallClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    const rect = e.currentTarget.getBoundingClientRect()
-    setFragmentActionPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2
-    })
+  e.stopPropagation()
+  const rect = e.currentTarget.getBoundingClientRect()
+  const position = {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2
+  }
+
+  if (isFailed) {
+    setFailedActionPosition(position)
+    setShowFailedActionRing(true)
+  } else {
+    setFragmentActionPosition(position)
     setShowFragmentActionRing(true)
-  }, [])
+  }
+  }, [isFailed])
   
   const handleEdit = useCallback((fragment: GridFragment) => {
     console.log('編輯碎片:', fragment.id)
@@ -228,13 +258,11 @@ const GridFragmentCard = ({
     console.log('準備刪除碎片:', fragment.id)
     
     try {
-      // 優先使用外部刪除處理器
       if (onDelete) {
         onDelete(fragment)
         return
       }
       
-      // 使用 store 的 deleteFragment 方法
       await deleteFragment(fragment.id)
       console.log('✅ 成功刪除碎片:', fragment.id)
       
@@ -266,8 +294,8 @@ const GridFragmentCard = ({
         onToggleContent={handleToggleContent}
         onToggleNote={handleToggleNote}
         layout="vertical"
-        contentHovering={false} // 完全禁用懸停效果，避免內容跳動
-        noteHovering={false}    // 完全禁用懸停效果，避免內容跳動
+        contentHovering={contentScrollbar.hovering}
+        noteHovering={noteScrollbar.hovering}
       />
       
       {/* 筆記區域 */}
@@ -332,8 +360,8 @@ const GridFragmentCard = ({
         onToggleContent={handleToggleContent}
         onToggleNote={handleToggleNote}
         layout="horizontal"
-        contentHovering={false} // 完全禁用懸停效果，避免內容跳動
-        noteHovering={false}    // 完全禁用懸停效果，避免內容跳動
+        contentHovering={contentScrollbar.hovering}
+        noteHovering={noteScrollbar.hovering}
       />
       
       {/* 標籤區域 */}
@@ -348,121 +376,159 @@ const GridFragmentCard = ({
     </>
   )
   
-      return (
-      <div style={{ position: 'absolute', top: `${top}px`, left: `${left}px` }}>
-        {/* 小毛球圖示 - 脫離卡片 overflow 限制 */}
-        <button
-          onClick={handleFuzzyBallClick}
-          className="fuzzy-ball-button"
-          onMouseEnter={() => setIsFuzzyHovered(true)}
-          onMouseLeave={() => setIsFuzzyHovered(false)}
-          style={{
-            position: 'absolute',
-            top: '0',
-            right: '0',
-            width: '50px',
-            height: '50px',
-            background: 'transparent',
-            border: 'none',
-            padding: 0,
-            cursor: 'pointer',
-            zIndex: 10,
-            transition: 'opacity 0.2s ease',
-            transform: 'translate(60%, -50%)',
-            opacity: isHovered ? 1 : 0,
-            pointerEvents: isHovered ? 'auto' : 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          title="卡片選項"
-        >
-          <FuzzyBallIcon size={18} isHovered={isFuzzyHovered} variant="breathe" />
-        </button>
+  return (
+  <div
+    ref={observerRef}
+    data-fragment-id={fragment.id}
+    onClick={() => onFragmentClick(fragment)}
+    onMouseDown={(e) => onDragStart(e, fragment)}
+    onMouseEnter={() => setIsHovered(true)}
+    onMouseLeave={() => setIsHovered(false)}
+    className={`fragment-card ${isDragging ? 'is-dragging' : ''} ${previewPosition ? 'is-previewing' : ''}`}
+    style={{
+      position: 'absolute',
+      top: `${top}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      height: `${height}px`,
+      minWidth: `${width}px`,
+      maxWidth: `${width}px`,
+      minHeight: `${height}px`,
+      maxHeight: `${height}px`,
+      boxSizing: 'border-box',
+      padding: '12px',
+      backgroundColor: '#fffbef',
+      borderRadius: '10px',
+      boxShadow,
+      transform: isSelected && !isDragging ? 'scale(1.02)' : 'none',
+      cursor: isDragging ? 'grabbing' : 'grab',
+      overflow: 'visible', // ✅ 關鍵改這裡
+      transition: transitionStyle,
+      zIndex,
+      opacity: isLoading ? 0.8 : isFailed ? 0.9 : 1,
+      border: isFailed
+      ? '1px solid rgba(239, 68, 68, 0.3)'
+      : previewPosition
+      ? '1px solid rgba(50, 120, 200, 0.3)'
+      : '1px solid rgba(0, 0, 0, 0.05)',
+    }}
+  >
+    {/* ✅ 毛球按鈕仍可自由浮出 */}
+    <button
+      onClick={handleFuzzyBallClick}
+      onMouseEnter={() => setIsFuzzyHovered(true)}
+      onMouseLeave={() => setIsFuzzyHovered(false)}
+      className="fuzzy-ball-button"
+      style={{
+        position: 'absolute',
+        top: '0',
+        right: '0',
+        width: '50px',
+        height: '50px',
+        background: 'transparent',
+        border: 'none',
+        padding: 0,
+        cursor: 'pointer',
+        zIndex: 10,
+        transition: 'opacity 0.2s ease',
+        transform: 'translate(60%, -50%)',
+        opacity: isHovered || showSpecialIcon ? 1 : 0,
+        pointerEvents: isHovered || showSpecialIcon ? 'auto' : 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+      title={
+        isLoading ? '正在處理中...' :
+        isFailed ? `操作失敗：${fragment._failureReason}` :
+        '卡片選項'
+      }
+    >
+      <FuzzyBallIcon 
+        size={18} 
+        isHovered={isFuzzyHovered}
+        color="#d1b684"
+        variant={iconVariant}
+      />
+    </button>
 
-        {/* 卡片本體 */}
-        <div
-          ref={observerRef}
-          data-fragment-id={fragment.id}
-          onClick={() => onFragmentClick(fragment)}
-          onMouseDown={(e) => onDragStart(e, fragment)}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-          className={`fragment-card ${isDragging ? 'is-dragging' : ''} ${previewPosition ? 'is-previewing' : ''}`}
-          style={{
-            width: `${width}px`,
-            height: `${height}px`,
-            padding: '12px',
-            backgroundColor: '#fffbef',
-            borderRadius: '10px',
-            boxShadow,
-            overflow: 'hidden',
-            border: previewPosition ? '1px solid rgba(50, 120, 200, 0.3)' : '1px solid rgba(0, 0, 0, 0.05)',
-            transform: isSelected && !isDragging ? 'scale(1.02)' : 'none',
-            cursor: isDragging ? 'grabbing' : 'grab',
-            display: 'flex',
-            flexDirection: fragment.direction === 'vertical' ? 'row' : 'column',
-            transition: transitionStyle,
-            zIndex,
-            opacity: isDragging ? (validationState === 'valid' ? 1 : 0.4) : 1,
-            position: 'relative'
-          }}
-        >
-          {fragment.direction === 'vertical' ? renderVerticalLayout() : renderHorizontalLayout()}
+    {/* ✅ 新增內容包裹層：限制溢出 */}
+    <div style={{
+      width: '100%',
+      height: '100%',
+      overflow: 'hidden', // ✅ 只這層會裁切標籤與內容
+      display: 'flex',
+      flexDirection: fragment.direction === 'vertical' ? 'row' : 'column',
+    }}>
+      {fragment.direction === 'vertical' ? renderVerticalLayout() : renderHorizontalLayout()}
+    </div>
 
-          {isSelected && (
-            <div 
-              style={{
-                position: 'absolute',
-                bottom: '4px',
-                right: '6px',
-                fontSize: '9px',
-                color: '#aaa',
-                writingMode: fragment.direction === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
-              }}
-            >
-              {formatDate(fragment.createdAt)}
-            </div>
-          )}
-
-          {clickedTag && tagActionPosition && (
-            <TagActionRing
-              tag={clickedTag}
-              position={tagActionPosition}
-              onClose={() => {
-                setClickedTag(null)
-                setTagActionPosition(null)
-              }}
-              onOpenDetail={(tag) => {
-                setDetailTag(tag)
-                setShowTagDetail(true)
-                setClickedTag(null)
-                setTagActionPosition(null)
-              }}
-              fragmentId={fragment.id}
-            />
-          )}
-
-          {showTagDetail && detailTag && (
-            <TagDetailModal
-              tag={detailTag}
-              relatedFragments={TagsService.findFragmentsByTag(fragments, detailTag)}
-              onClose={handleCloseTagDetail}
-            />
-          )}
-
-          {showFragmentActionRing && fragmentActionPosition && (
-            <FragmentActionRing
-              fragment={fragment}
-              position={fragmentActionPosition}
-              onClose={() => setShowFragmentActionRing(false)}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          )}
-        </div>
+    {isSelected && (
+      <div 
+        style={{
+          position: 'absolute',
+          bottom: '4px',
+          right: '6px',
+          fontSize: '9px',
+          color: '#aaa',
+          writingMode: fragment.direction === 'vertical' ? 'vertical-rl' : 'horizontal-tb',
+        }}
+      >
+        {formatDate(fragment.createdAt)}
       </div>
-    )
+    )}
+
+    {clickedTag && tagActionPosition && (
+      <TagActionRing
+        tag={clickedTag}
+        position={tagActionPosition}
+        onClose={() => {
+          setClickedTag(null)
+          setTagActionPosition(null)
+        }}
+        onOpenDetail={(tag) => {
+          setDetailTag(tag)
+          setShowTagDetail(true)
+          setClickedTag(null)
+          setTagActionPosition(null)
+        }}
+        fragmentId={fragment.id}
+      />
+    )}
+
+    {showTagDetail && detailTag && (
+      <TagDetailModal
+        tag={detailTag}
+        relatedFragments={TagsService.findFragmentsByTag(fragments, detailTag)}
+        onClose={handleCloseTagDetail}
+      />
+    )}
+
+    {showFragmentActionRing && fragmentActionPosition && (
+      <FragmentActionRing
+        fragment={fragment}
+        position={fragmentActionPosition}
+        onClose={() => setShowFragmentActionRing(false)}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
+    )}
+
+    {showFailedActionRing && failedActionPosition && isFailed && (
+  <FailedFragmentActionRing
+    fragment={fragment}
+    position={failedActionPosition}
+    onClose={() => setShowFailedActionRing(false)}
+    onRetry={handleRetry}
+    onAbandon={handleAbandon}
+  />
+  )}
+
+
+    
+  </div>
+)
+
 }
 
 export default GridFragmentCard

@@ -112,6 +112,40 @@ export interface Fragment {
   showContent?: boolean;         // 是否顯示主內容
   showNote?: boolean;            // 是否顯示筆記
   showTags?: boolean;            // 是否顯示標籤
+
+  // 🚀 === 樂觀更新控制字段 ===
+  _optimistic?: boolean;         // 標記這是樂觀更新的臨時項目
+  _pending?: boolean;            // 標記正在等待服務器響應
+  _error?: string;               // 操作失敗時的錯誤信息
+  _retryCount?: number;          // 重試次數
+  
+  // 🚀 === 新增：操作狀態字段 ===
+  _operationStatus?: 'normal' | 'creating' | 'deleting' | 'create_failed' | 'delete_failed';
+  _operationType?: 'create' | 'delete' | 'update';  // 記錄操作類型
+  _failureReason?: string;       // 失敗原因
+}
+
+// 🚀 新增：檢查 Fragment 狀態的工具函數
+export function getFragmentStatus(fragment: Fragment): {
+  isNormal: boolean;
+  isLoading: boolean;
+  isFailed: boolean;
+  showSpecialIcon: boolean;
+  iconVariant: 'loading' | 'failed' | 'breathe';
+} {
+  const status = fragment._operationStatus || 'normal';
+  
+  return {
+    isNormal: status === 'normal',
+    isLoading: status === 'creating' || status === 'deleting',
+    isFailed: status === 'create_failed' || status === 'delete_failed',
+    showSpecialIcon: status !== 'normal',
+    iconVariant: status === 'creating' || status === 'deleting' 
+      ? 'loading' 
+      : status === 'create_failed' || status === 'delete_failed'
+      ? 'failed'
+      : 'breathe'
+  };
 }
 
 /**
@@ -154,7 +188,7 @@ export function dbFragmentToFragment(dbFragment: DbFragment, notes: Note[] = [],
  * 從前端 Fragment 轉換為資料庫 Fragment
  */
 export function fragmentToDbFragment(fragment: Fragment, userId: string): Omit<DbFragment, 'user_id'> & { user_id: string } {
-  const { notes, tags, relations, creator, lastEditor, childIds, ...dbData } = fragment
+  const { notes, tags, relations, creator, lastEditor, childIds, _optimistic, _pending, _error, _retryCount, ...dbData } = fragment
   return {
     ...dbData,
     user_id: userId
@@ -221,3 +255,54 @@ export type FragmentViewMode =
   | 'graph'     // 圖表視圖
   | 'calendar'  // 日曆視圖
   | 'timeline'; // 時間線視圖
+
+// 🚀 === 新增：樂觀更新相關工具函數 ===
+
+/**
+ * 創建樂觀更新的 Fragment
+ */
+export function createOptimisticFragment(
+  content: string, 
+  tags: string[] = [], 
+  notes: Note[] = []
+): Fragment {
+  const now = new Date().toISOString()
+  return {
+    id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    content,
+    tags,
+    notes,
+    type: 'fragment',
+    createdAt: now,
+    updatedAt: now,
+    creator: 'current-user',
+    lastEditor: 'current-user',
+    childIds: [],
+    relations: [],
+    // 樂觀更新標記
+    _optimistic: true,
+    _pending: true
+  }
+}
+
+/**
+ * 檢查 Fragment 是否為樂觀更新狀態
+ */
+export function isOptimisticFragment(fragment: Fragment): boolean {
+  return fragment._optimistic === true
+}
+
+/**
+ * 檢查 Fragment 是否正在等待響應
+ */
+export function isPendingFragment(fragment: Fragment): boolean {
+  return fragment._pending === true
+}
+
+/**
+ * 清除 Fragment 的樂觀更新標記
+ */
+export function clearOptimisticFlags(fragment: Fragment): Fragment {
+  const { _optimistic, _pending, _error, _retryCount, ...cleanFragment } = fragment
+  return cleanFragment
+}

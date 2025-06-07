@@ -64,6 +64,10 @@ export default function FloatingInputBar() {
   const [isScaling, setIsScaling] = useState(false)
   const [transformOrigin, setTransformOrigin] = useState('center center')
   const hasDraft = content.trim() || pendingTags.length > 0 || notes.some(note => note.title.trim() || note.value.trim());
+  const [feedbackState, setFeedbackState] = useState<'none' | 'success' | 'error'>('none')
+  const [shouldAnimateEnter, setShouldAnimateEnter] = useState(false)
+  const [shouldRenderInput, setShouldRenderInput] = useState(false)
+  const [isMountReady, setIsMountReady] = useState(false)
 
   
   const [isExiting, setIsExiting] = useState(false)
@@ -79,6 +83,24 @@ export default function FloatingInputBar() {
     }
   }, [isTabMode, isTabExpanded, setConnected])
 
+    useEffect(() => {
+    if (!isTabMode) return
+
+    // 每次 tab 收合或展開都重設 render 狀態
+    setIsMountReady(false)
+    setShouldRenderInput(false)
+
+    if (isTabExpanded) {
+      requestAnimationFrame(() => {
+        setIsMountReady(true)
+        setShouldRenderInput(true)
+        setShouldAnimateEnter(true)
+
+        setTimeout(() => setShouldAnimateEnter(false), 600)
+      })
+    }
+  }, [isTabExpanded])
+
   // 監聽斷開連線事件
   useEffect(() => {
     const handleDisconnectLine = (event: CustomEvent) => {
@@ -91,6 +113,8 @@ export default function FloatingInputBar() {
     }
     
     globalThis.window?.addEventListener('disconnect-line', handleDisconnectLine as EventListener)
+
+
     
     return () => {
       globalThis.window?.removeEventListener('disconnect-line', handleDisconnectLine as EventListener)
@@ -227,7 +251,11 @@ export default function FloatingInputBar() {
 
   /* 提交新碎片 */
   const handleSubmit = async () => {
-  if (!content.trim()) return
+  if (!content.trim()) {
+    setFeedbackState('error')
+    setTimeout(() => setFeedbackState('none'), 1000)
+    return
+  }
   
   const filteredNotes = notes.filter(note => 
     note.title.trim() !== '' || note.value.trim() !== ''
@@ -236,11 +264,26 @@ export default function FloatingInputBar() {
   const notesToSave = filteredNotes.length > 0 ? filteredNotes : []
 
   try {
+    // 立即开始成功动画
+    setFeedbackState('success')
+    
+    // 只清空内容，不重置连线状态
+    setContent('')
+    clearPendingTags()
+    setNotes([{ id: uuidv4(), title: '', value: '' }])
+    setResetKey(prev => prev + 1)
+    localStorage.removeItem('murverse_draft')
+    
     await addFragment(content, pendingTags, notesToSave)
-    resetInput()
+    
+    // 800ms后隐藏成功消息
+    setTimeout(() => setFeedbackState('none'), 800)
+    
     fragmentId.current = uuidv4()
   } catch (error) {
     console.error('Failed to submit fragment:', error)
+    setFeedbackState('error')
+    setTimeout(() => setFeedbackState('none'), 1000)
   }
 }
 
@@ -490,6 +533,10 @@ const handleToggleFullScreen = () => {
  )
 }
 
+if ((!shouldRenderInput || !isMountReady) && isTabMode && isTabExpanded) {
+  return null
+}
+
 return (
  <>
    {/* 標籤連線線條 */}
@@ -522,9 +569,11 @@ return (
   onMouseDown={handleMouseDown}
   onDragStart={e => e.preventDefault()}
   className={`fixed z-[25] border rounded-sm shadow-lg select-none
+    ${feedbackState === 'success' ? 'feedback-success' : ''}
+    ${feedbackState === 'error' ? 'feedback-error' : ''}
     ${expanded && !isCollapsed ? 'p-4' : 'p-2'}
     ${isFullScreen ? 'transition-all duration-300 ease-in-out' : ''}
-    ${isTabMode && isTabExpanded ? 'window-enter' : ''}
+    ${shouldAnimateEnter ? 'window-enter' : ''}
     ${isTabMode && !isTabExpanded ? 'window-exit' : ''}
     ${isScaling ? 'scale-animation' : ''}`} // 新增縮放動畫類
   style={{
@@ -554,6 +603,7 @@ return (
       ? 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1), width 0.3s, height 0.3s'
       : 'width 0.3s, height 0.3s'
   }}
+  
 >
 
      {/* Tab 書籤 - 在窗口內部，用 absolute 定位到右側 */}
@@ -565,14 +615,13 @@ return (
          transform: 'translateY(-50%)',
          zIndex: 5
        }}
-       onClick={(e) => {
-         e.stopPropagation();
-         if (isTabMode) {
-           toggleCollapse()
-         } else {
-           setExpanded(!expanded)
-         }
-       }}
+      onClick={(e) => {
+      e.stopPropagation();
+      if (isTabMode) {
+        toggleCollapse();
+        setExpanded(!expanded);
+      }
+    }}
      >
        <div 
         className="relative transition-all duration-200 ease-out"
@@ -758,7 +807,30 @@ return (
            />
          </div>
        </div>
+
      )}
+
+     {/* 反馈訊息 */}
+      {feedbackState === 'success' && (
+       <div 
+         className="absolute -top-12 left-1/2 transform -translate-x-1/2 bg-green-500 bg-opacity-70 text-white px-4 py-2 rounded-lg text-sm shadow-lg animate-fade-in"
+         style={{ zIndex: 1000 }}
+       >
+         ✓ 碎片已保存
+       </div>
+     )}
+     
+     {feedbackState === 'error' && (
+       <div 
+         className="absolute bottom-20 left-1/2 transform -translate-x-1/2 bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm animate-fade-in"
+         style={{ zIndex: 100 }}
+       >
+         請輸入內容
+       </div>
+     )}
+     
    </div>
+   
  </>
+ 
 )}

@@ -10,6 +10,7 @@ import { matchText, matchFragment, matchesSearchToken } from '@/features/search/
 import { isDateInRange } from '@/features/fragments/utils'
 import { SORT_FIELDS, SORT_ORDERS } from '@/features/fragments/constants'
 
+
 // 使用常量來定義排序方式
 type SortField = typeof SORT_FIELDS[keyof typeof SORT_FIELDS]
 type SortOrder = typeof SORT_ORDERS[keyof typeof SORT_ORDERS]
@@ -59,6 +60,8 @@ interface FragmentsState {
   advancedSearch: ParsedSearch | null
   isLoading: boolean
   error: string | null
+  retryOperation: (fragmentId: string) => Promise<void>
+  abandonOperation: (fragmentId: string) => void
 
   // 刪除相關狀態
   deletionInProgress: Set<string>
@@ -107,6 +110,7 @@ interface FragmentsState {
 
 // 檢查是否在客戶端環境
 const isClient = typeof window !== 'undefined'
+
 
 export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   fragments: [],
@@ -238,15 +242,47 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     })
   },
 
+
   /**
-   * 添加新碎片
+   * 🚀 樂觀添加新碎片
    */
+  /**
+ * 🚀 樂觀添加新碎片 - 含狀態管理
+ */
   addFragment: async (content, tags, notes) => {
     if (!isClient) return
     
-    set({ isLoading: true, error: null })
-    
+    // 🎯 創建臨時 Fragment（立即顯示，loading 狀態）
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const optimisticFragment: Fragment = {
+      id: tempId,
+      content,
+      tags,
+      notes,
+      type: 'fragment',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      creator: 'current-user',
+      lastEditor: 'current-user',
+      childIds: [],
+      relations: [],
+      // 🚀 設置操作狀態
+      _optimistic: true,
+      _pending: true,
+      _operationStatus: 'creating',
+      _operationType: 'create',
+    } as Fragment
+
+    // 🚀 立即更新 UI
+    set(state => ({
+      fragments: [optimisticFragment, ...state.fragments],
+      error: null,
+    }))
+
     try {
+      console.log('🆕 開始創建新碎片...')
+      
+      // 發送 API 請求
       const newFragment = await apiClient.createFragment({
         content,
         tags,
@@ -254,141 +290,193 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
         type: 'fragment'
       })
       
+      // 🔄 成功：替換臨時 Fragment 為真實 Fragment
       set(state => ({
-        fragments: [newFragment, ...state.fragments],
-        error: null
+        fragments: state.fragments.map(f => 
+          f.id === tempId ? {
+            ...newFragment,
+            _operationStatus: 'normal' // 清除狀態
+          } : f
+        ),
+        error: null,
       }))
+
+      console.log('✅ 碎片創建成功:', newFragment.id)
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to add fragment'
-      console.error('Failed to add fragment:', error)
-      set({ error: errorMessage })
-      throw error
-    } finally {
-      set({ isLoading: false })
+      console.error('❌ 碎片創建失敗:', error)
+      
+      // 🔄 失敗：標記為失敗狀態（不刪除，顯示紅毛球）
+      set(state => ({
+        fragments: state.fragments.map(f => 
+          f.id === tempId ? {
+            ...f,
+            _operationStatus: 'create_failed',
+            _failureReason: errorMessage,
+            _pending: false
+          } : f
+        ),
+        error: errorMessage,
+      }))
     }
   },
 
-  /**
-   * 🎯 專業級刪除 Fragment 方法
-   */
-  deleteFragment: async (fragmentId: string, options: DeletionOptions = {}) => {
-    const state = get()
-    
-    // 防止重複刪除
-    if (state.deletionInProgress.has(fragmentId)) {
-      const existingResult = state.deletionResults.get(fragmentId)
-      if (existingResult) {
-        return existingResult
-      }
+
+    /**
+ * 🚀 樂觀刪除 Fragment 方法 - 含狀態管理
+ */
+    deleteFragment: async (fragmentId: string, options: DeletionOptions = {}) => {
+      const state = get()
       
-      return {
-        success: false,
-        fragmentId,
-        message: '刪除操作正在進行中',
-        errors: [{
-          code: 'DELETION_IN_PROGRESS',
-          message: '該 Fragment 正在被刪除',
-          recoverable: false
-        }]
-      }
-    }
-
-    // 獲取要刪除的 Fragment
-    const fragmentToDelete = state.fragments.find(f => f.id === fragmentId)
-    
-    // 設置刪除進行中狀態
-    set(prevState => ({
-      deletionInProgress: new Set([...prevState.deletionInProgress, fragmentId]),
-      isLoading: true,
-      error: null
-    }))
-
-    try {
-      console.log(`🗑️ 開始刪除 Fragment: ${fragmentId}`)
-      
-      // 使用 API 客戶端進行刪除
-      await apiClient.deleteFragment(fragmentId)
-
-      // 創建成功結果
-      const result: DeletionResult = {
-        success: true,
-        fragmentId,
-        message: 'Fragment 刪除成功',
-        metrics: {
-          totalTime: 0,
-          deletedRecords: 1,
-          cleanedCaches: 1
+      // 防止重複刪除
+      if (state.deletionInProgress.has(fragmentId)) {
+        return {
+          success: false,
+          fragmentId,
+          message: '刪除操作正在進行中',
+          errors: [{
+            code: 'DELETION_IN_PROGRESS',
+            message: '該 Fragment 正在被刪除',
+            recoverable: false
+          }]
         }
       }
 
-      // 記錄刪除結果
-      set(prevState => ({
-        deletionResults: new Map([...prevState.deletionResults, [fragmentId, result]])
-      }))
+      // 🎯 保存原始 Fragment（用於回滾）
+      const originalFragment = state.fragments.find(f => f.id === fragmentId)
+      if (!originalFragment) {
+        return {
+          success: false,
+          fragmentId,
+          message: 'Fragment 不存在',
+          errors: [{
+            code: 'FRAGMENT_NOT_FOUND',
+            message: 'Fragment 不存在',
+            recoverable: false
+          }]
+        }
+      }
 
-      // 從本地狀態移除 Fragment
+      // 🚀 立即更新 UI（樂觀刪除）
       set(prevState => ({
         fragments: prevState.fragments.filter(f => f.id !== fragmentId),
         selectedFragment: prevState.selectedFragment?.id === fragmentId 
           ? null 
           : prevState.selectedFragment,
+        deletionInProgress: new Set([...prevState.deletionInProgress, fragmentId]),
         error: null
       }))
 
-      console.log(`✅ Fragment ${fragmentId} 刪除成功`)
-      
-      // 顯示成功通知
-      const { showNotification } = get()
-      showNotification?.('success', result.message)
-      
-      // 自動清理成功的刪除結果（延遲清理）
-      setTimeout(() => {
-        get().clearDeletionResult(fragmentId)
-      }, 5000)
-
-      return result
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '刪除過程發生未知錯誤'
-      
-      console.error(`❌ Fragment ${fragmentId} 刪除失敗:`, error)
-      
-      const failureResult: DeletionResult = {
-        success: false,
-        fragmentId,
-        message: errorMessage,
-        errors: [{
-          code: 'DELETION_FAILED',
-          message: errorMessage,
-          recoverable: false
-        }]
-      }
-
-      // 記錄失敗結果
-      set(prevState => ({
-        deletionResults: new Map([...prevState.deletionResults, [fragmentId, failureResult]]),
-        error: errorMessage
-      }))
-
-      // 顯示錯誤通知
-      const { showNotification } = get()
-      showNotification?.('error', `刪除失敗: ${errorMessage}`)
-
-      return failureResult
-
-    } finally {
-      // 清理進行中狀態
-      set(prevState => {
-        const newInProgress = new Set(prevState.deletionInProgress)
-        newInProgress.delete(fragmentId)
+      try {
+        console.log(`🗑️ 開始刪除 Fragment: ${fragmentId}`)
         
-        return {
-          deletionInProgress: newInProgress,
-          isLoading: newInProgress.size > 0
+        // 發送 API 請求（在背景執行）
+        await apiClient.deleteFragment(fragmentId)
+
+        const result: DeletionResult = {
+          success: true,
+          fragmentId,
+          message: 'Fragment 刪除成功',
+          metrics: {
+            totalTime: 0,
+            deletedRecords: 1,
+            cleanedCaches: 1
+          }
         }
-      })
-    }
-  },
+
+        console.log(`✅ Fragment ${fragmentId} 刪除成功`)
+        return result
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '刪除過程發生未知錯誤'
+        
+        console.error(`❌ Fragment ${fragmentId} 刪除失敗:`, error)
+        
+        // 🔄 失敗時恢復 Fragment（帶失敗狀態）
+        set(prevState => ({
+          fragments: [{
+            ...originalFragment,
+            _operationStatus: 'delete_failed',
+            _operationType: 'delete',
+            _failureReason: errorMessage,
+            _pending: false
+          }, ...prevState.fragments],
+          selectedFragment: prevState.selectedFragment,
+          error: errorMessage
+        }))
+
+        const failureResult: DeletionResult = {
+          success: false,
+          fragmentId,
+          message: errorMessage,
+          errors: [{
+            code: 'DELETION_FAILED',
+            message: errorMessage,
+            recoverable: false
+          }]
+        }
+
+        return failureResult
+
+      } finally {
+        // 清理進行中狀態
+        set(prevState => {
+          const newInProgress = new Set(prevState.deletionInProgress)
+          newInProgress.delete(fragmentId)
+          
+          return {
+            deletionInProgress: newInProgress,
+            isLoading: newInProgress.size > 0
+          }
+        })
+      }
+    },
+
+    // 🚀 新增：重試方法
+    retryOperation: async (fragmentId: string) => {
+      const fragment = get().fragments.find(f => f.id === fragmentId)
+      if (!fragment || !fragment._operationType) return
+
+      // 根據操作類型重試
+      if (fragment._operationType === 'create') {
+        // 重新創建
+        await get().addFragment(fragment.content, fragment.tags, fragment.notes)
+        // 移除失敗的臨時 fragment
+        set(state => ({
+          fragments: state.fragments.filter(f => f.id !== fragmentId)
+        }))
+      } else if (fragment._operationType === 'delete') {
+        // 重新刪除
+        await get().deleteFragment(fragmentId)
+      }
+    },
+
+    // 🚀 新增：放棄操作方法
+    abandonOperation: (fragmentId: string) => {
+      const fragment = get().fragments.find(f => f.id === fragmentId)
+      if (!fragment) return
+
+      if (fragment._operationType === 'create') {
+        // 放棄創建：直接移除
+        set(state => ({
+          fragments: state.fragments.filter(f => f.id !== fragmentId)
+        }))
+      } else if (fragment._operationType === 'delete') {
+        // 放棄刪除：恢復正常狀態
+        set(state => ({
+          fragments: state.fragments.map(f => 
+            f.id === fragmentId ? {
+              ...f,
+              _operationStatus: 'normal',
+              _operationType: undefined,
+              _failureReason: undefined,
+              _pending: false
+            } : f
+          )
+        }))
+      }
+    },
 
   /**
    * 批量刪除 Fragments

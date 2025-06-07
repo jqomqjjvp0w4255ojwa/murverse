@@ -5,7 +5,7 @@ interface FuzzyBallIconProps {
   size?: number
   color?: string
   isHovered?: boolean
-  variant?: 'none' | 'breathe' | 'pulse' | 'hoverScale'
+  variant?: 'none' | 'breathe' | 'pulse' | 'hoverScale' | 'sway' | 'loading' | 'failed'
 }
 
 const FuzzyBallIcon: React.FC<FuzzyBallIconProps> = ({
@@ -21,10 +21,20 @@ const FuzzyBallIcon: React.FC<FuzzyBallIconProps> = ({
   const baseLength = outerRadius - innerRadius
   const expandedLength = baseLength + 1.5
 
+  // 🔧 修復：根據狀態決定顏色
+  const getLineColor = () => {
+    if (variant === 'failed') return '#ef4444' // 紅色
+    return color
+  }
+
+  // 🔧 修復：統一類名命名規則，使用 kebab-case
   const containerClass = classNames({
     'fuzzy-breathe': variant === 'breathe' && isHovered,
     'fuzzy-pulse': variant === 'pulse' && isHovered,
     'fuzzy-hover': variant === 'hoverScale' && isHovered,
+    'fuzzy-sway': variant === 'sway',
+    'fuzzy-loading': variant === 'loading',
+    'fuzzy-failed': variant === 'failed',
   })
 
   return (
@@ -46,14 +56,14 @@ const FuzzyBallIcon: React.FC<FuzzyBallIconProps> = ({
               position: 'absolute',
               width: `${isHovered ? expandedLength : baseLength}px`,
               height: isHovered ? '1.5px' : '1px',
-              backgroundColor: color,
+              backgroundColor: getLineColor(),
               top: '50%',
               left: '50%',
               opacity: isHovered ? 1 : 0.8,
               borderRadius: '1px',
               transformOrigin: `${-innerRadius}px 50%`,
               transform: `translate(${-innerRadius}px, -50%) rotate(${angle}deg)`,
-              transition: 'all 0.25s ease-out',
+              transition: variant === 'failed' ? 'none' : 'all 0.25s ease-out',
             }}
           />
         )
