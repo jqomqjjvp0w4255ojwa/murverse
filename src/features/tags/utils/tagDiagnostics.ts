@@ -16,6 +16,23 @@ export function runTagDiagnostics() {
   const { globalTags: realGlobalTags } = useGlobalTagsStore.getState()
   const { fragments } = useFragmentsStore.getState()
   
+  // 🚀 修復：檢查 fragments 是否為 null
+  if (!fragments) {
+    console.warn('⚠️ fragments 為 null，無法執行診斷')
+    return {
+      personalTagsCount: collectedTags.length,
+      oldGlobalTagsCount: globalTags.length,
+      realGlobalTagsCount: realGlobalTags.length,
+      fragmentTagsCount: 0,
+      notInPersonalTags: [],
+      notInOldGlobalTags: [],
+      notInRealGlobalTags: [],
+      fixSyncIssues: () => {
+        console.warn('⚠️ fragments 為 null，無法執行同步修復')
+      }
+    }
+  }
+  
   // 收集所有碎片中的標籤
   const fragmentTagsSet = new Set<string>()
   fragments.forEach(fragment => {

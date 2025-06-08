@@ -60,6 +60,13 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
     const fragments = useFragmentsStore.getState().fragments;
     const searchStore = useSearchStore.getState();
   
+    // 🚀 修復：檢查 fragments 是否為 null 或空陣列
+    if (!fragments || fragments.length === 0) {
+      console.warn('⚠️ 沒有可搜尋的碎片數據')
+      onSearch([])
+      return
+    }
+  
     const tokens = SearchService.parseSearchQuery(query, matchMode);
   
     const searchOptions = {
@@ -77,6 +84,7 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
   
     console.log('🔍 執行搜尋 with:', searchOptions);
   
+    // 🚀 修復：確保傳入的是 Fragment[] 而非 Fragment[] | null
     const results = SearchService.search(fragments, searchOptions);
 
   
@@ -112,7 +120,8 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
   
     /* 4. 告訴父層回復顯示全部碎片 */
     const allFragments = useFragmentsStore.getState().fragments;
-    onSearch(allFragments);          // 讓 TagsFloatingWindow 與 UI 立即拿到全資料
+    // 🚀 修復：確保傳入的是陣列而非 null
+    onSearch(allFragments || []);          // 讓 TagsFloatingWindow 與 UI 立即拿到全資料
   
     /* 5. 關閉「沒有結果」提示 */
     onResetNoResults?.();

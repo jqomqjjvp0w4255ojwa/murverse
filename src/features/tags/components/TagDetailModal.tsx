@@ -47,7 +47,9 @@ const TagDetailModal: React.FC<TagDetailModalProps> = ({
 
 
   // 尋找相似標籤 - 修正：傳入 fragments 和 tag 參數
-  const similarTags = TagsService.findSimilarTagsByCooccurrence(tag, fragments, 5);
+  const similarTags = fragments 
+  ? TagsService.findSimilarTagsByCooccurrence(tag, fragments, 5)
+  : [];
 
   return (
     <div 
