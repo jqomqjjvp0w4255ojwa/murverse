@@ -365,6 +365,13 @@ textarea.scrollbar-invisible::-webkit-scrollbar {
   100% { transform: rotate(0deg); }
 }
 
+@keyframes fuzzy-swing {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-15deg); }
+  75% { transform: rotate(15deg); }
+  100% { transform: rotate(0deg); }
+}
+
 /* 🔧 修復：統一動畫類別 - 確保類名與動畫名稱匹配 */
 .fuzzy-breathe {
   animation: fuzzy-breathe 1.5s ease-in-out infinite;
@@ -391,6 +398,12 @@ textarea.scrollbar-invisible::-webkit-scrollbar {
   animation: none;
   transform: none;
 }
+
+
+.fuzzy-swing {
+  animation: fuzzy-swing 1.2s ease-in-out infinite;
+}
+
 
 /* 🔧 修復：小毛球顯示控制 - 統一的狀態管理 */
 .fragment-card .fuzzy-ball-button {

@@ -30,7 +30,7 @@ const TagActionRing: React.FC<TagActionRingProps> = ({
   const [isRemovingFromThisFragment, setIsRemovingFromThisFragment] = useState(false)
   
   // 計算此標籤在幾個片段中出現
-  const fragmentsWithTag = fragments.filter(f => f.tags.includes(tag)).length
+  const fragmentsWithTag = (fragments || []).filter(f => f.tags.includes(tag)).length
 
   // 處理標籤詳情打開
   const handleOpenDetail = () => {

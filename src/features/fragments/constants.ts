@@ -5,7 +5,7 @@ export const GRID_SIZE = 20 // 每個格子20px
 export const GRID_GAP = 3   // 格子間的間距係數
 
 // 容器常數
-export const CONTAINER_WIDTH = 1200  // 固定容器寬度
+export const CONTAINER_WIDTH = 1250  // 固定容器寬度
 
 // 內容字數限制
 export const MAX_CONTENT_LENGTH = 100

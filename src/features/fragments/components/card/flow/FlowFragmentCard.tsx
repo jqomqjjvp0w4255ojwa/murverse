@@ -460,12 +460,12 @@ const GridFragmentCard = ({
 
       {/* 標籤詳情彈窗 */}
       {showTagDetail && detailTag && (
-        <TagDetailModal
-          tag={detailTag}
-          relatedFragments={TagsService.findFragmentsByTag(fragments, detailTag)}
-          onClose={handleCloseTagDetail}
-        />
-      )}
+      <TagDetailModal
+        tag={detailTag}
+        relatedFragments={TagsService.findFragmentsByTag(fragments || [], detailTag)} // 🔧 修復：處理 null
+        onClose={handleCloseTagDetail}
+      />
+    )}
       
       {/* 碎片行動環 */}
       {showFragmentActionRing && fragmentActionPosition && (

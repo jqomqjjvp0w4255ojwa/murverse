@@ -431,7 +431,7 @@ const GridFragmentCard = ({
         cursor: 'pointer',
         zIndex: 10,
         transition: 'opacity 0.2s ease',
-        transform: 'translate(60%, -50%)',
+        transform: 'translate(40%, -50%)',
         opacity: isHovered || showSpecialIcon ? 1 : 0,
         pointerEvents: isHovered || showSpecialIcon ? 'auto' : 'none',
         display: 'flex',
@@ -445,7 +445,7 @@ const GridFragmentCard = ({
       }
     >
       <FuzzyBallIcon 
-        size={18} 
+        size={20} 
         isHovered={isFuzzyHovered}
         color="#d1b684"
         variant={iconVariant}
@@ -499,7 +499,7 @@ const GridFragmentCard = ({
     {showTagDetail && detailTag && (
       <TagDetailModal
         tag={detailTag}
-        relatedFragments={TagsService.findFragmentsByTag(fragments, detailTag)}
+        relatedFragments={TagsService.findFragmentsByTag(fragments || [], detailTag)} // 🔧 修復：處理 null
         onClose={handleCloseTagDetail}
       />
     )}

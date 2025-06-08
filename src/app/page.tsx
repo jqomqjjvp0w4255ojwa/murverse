@@ -1,4 +1,4 @@
-// src/app/page.tsx
+// src/app/page.tsx - 清理後版本
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -7,7 +7,6 @@ import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
 import { Fragment } from '@/features/fragments/types/fragment'
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
 import AuthButton from '@/features/fragments/components/AuthButton'
-
 
 // 動態導入組件
 const TagsFloatingWindow = dynamic(() =>
@@ -22,7 +21,6 @@ const FragmentDetailModal = dynamic(() => import('@/features/fragments/component
 const FloatingInputBar = dynamic(() => import('@/features/input/FloatingInputBar'), { ssr: false })
 const FloatingActionButton = dynamic(() => import('@/features/fragments/components/FloatingActionButton'), { ssr: false })
 const GroupFrame = dynamic(() => import('@/features/windows/GroupFrame'), { ssr: false })
-const FragmentsView = dynamic(() => import('@/features/fragments/FragmentsView'), { ssr: false })
 
 // 標籤拖曳相關組件
 const TagDragPreview = dynamic(() => import('@/features/fragments/components/TagDragPreview'), { ssr: false })
@@ -31,14 +29,13 @@ const DragToDeleteZone = dynamic(() => import('@/features/tags/components/DragTo
 export default function Home() {
   // 檢查是否在客戶端
   const [isClient, setIsClient] = useState(false)
-  const [currentMode, setCurrentMode] = useState('float')
   const [fragment, setFragment] = useState<Fragment | null>(null)
 
   // 使用標籤拖曳管理器（只在客戶端）
   const { draggingTag, dragPosition, isDragging } = useTagDragManager()
   
-  // 使用 store（只在客戶端）
-  const { mode, load } = useFragmentsStore()
+  // 🔧 簡化：移除 mode 相關邏輯，因為現在只有 float 模式
+  const { initialize } = useFragmentsStore()
 
   // 設定關閉函數
   const handleClose = () => {
@@ -53,22 +50,9 @@ export default function Home() {
   useEffect(() => {
     if (!isClient) return
 
-    // 確保只在客戶端執行
-    load()
-    // 同步 mode 到本地狀態
-    setCurrentMode(mode)
-    
-    // 訂閱 mode 變化
-    const unsubscribe = useFragmentsStore.subscribe(
-      state => setCurrentMode(state.mode)
-    )
-    
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe()
-      }
-    }
-  }, [isClient, load, mode])
+    // 🔧 簡化：只需要初始化，不需要手動 load
+    initialize()
+  }, [isClient, initialize])
   
   // 在服務器端渲染時返回一個基本的佔位符
   if (!isClient) {
@@ -81,24 +65,16 @@ export default function Home() {
   
   return (
     <>
-     <AuthButton />
+      <AuthButton />
+      
 
-      {/* 主內容區域和浮動窗口 */}
-      {currentMode === 'float' && (
-        <>
-          <FloatingFragmentsField />
-          <FloatingInputBar />
-          <TagsFloatingWindow />
-          <GroupFrame />
-         </>
-    )}
+      {/* 🔧 簡化：只保留 float 模式 */}
+      <FloatingFragmentsField />
+      <FloatingInputBar />
+      <TagsFloatingWindow />
+      <GroupFrame />
 
-      {/* 清單模式 - 保持原樣 */}
-      {currentMode === 'list' && (
-        <FragmentsView />
-      )}
-
-      {/* 公用組件 - 不受 Tab 影響 */}
+      {/* 公用組件 */}
       <FragmentDetailModal fragment={fragment} onClose={() => setFragment(null)} />
       <FloatingActionButton />
       

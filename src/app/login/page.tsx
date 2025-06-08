@@ -15,7 +15,7 @@ export default function LoginPage() {
           appearance={{ theme: ThemeSupa }}
           providers={['google']}
           theme="dark"
-          redirectTo="/"
+          redirectTo={typeof window !== 'undefined' ? `${window.location.origin}/` : undefined}
         />
       )}
     </div>

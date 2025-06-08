@@ -6,22 +6,22 @@
 在 UI 上會顯示「切到清單」或「切到漂浮」兩種狀態。 */
 
 
-
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
 
 export default function FloatingActionButton() {
   const { mode, setMode } = useFragmentsStore()
 
   const toggleMode = () => {
-    setMode(mode === 'float' ? 'list' : 'float')
+    setMode(mode === 'grid' ? 'flow' : 'grid')
   }
 
   return (
     <button
       onClick={toggleMode}
       className="fixed bottom-6 right-6 p-4 rounded-full bg-blue-500 text-white shadow-lg hover:bg-blue-600 z-50"
+      title={`切換到${mode === 'grid' ? '社群流動' : '拼圖排列'}模式`}
     >
-      {mode === 'float' ? '切到清單' : '切到漂浮'}
+      {mode === 'grid' ? '切到流動' : '切到拼圖'}
     </button>
   )
 }

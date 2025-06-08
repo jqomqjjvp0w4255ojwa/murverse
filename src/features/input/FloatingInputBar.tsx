@@ -38,7 +38,7 @@ export default function FloatingInputBar() {
 })
 
   // 從 store 獲取狀態和方法
-  const { fragments, setFragments, save, addFragment } = useFragmentsStore()
+  const { fragments, setFragments, addFragment } = useFragmentsStore()
 
   const { openTagSelector: enhancedOpenTagSelector } = useTagsIntegration()
   const {
