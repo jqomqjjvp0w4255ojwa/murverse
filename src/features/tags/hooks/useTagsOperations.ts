@@ -9,8 +9,8 @@ import { isSystemTag } from '@/features/tags/constants/systemTags'
 import { useSingleUserTagSync } from '@/shared/hook/useSingleUserTagSync'
 
 export function useTagsOperations() {
-  // Store hooks
-  const { fragments, setFragments, save, selectedTags, setSelectedTags, excludedTags, setExcludedTags, tagLogicMode } = useFragmentsStore()
+  // Store hooks - 移除 save
+  const { fragments, setFragments, selectedTags, setSelectedTags, excludedTags, setExcludedTags, tagLogicMode } = useFragmentsStore()
   const { mode, pendingTags, addPendingTag, removePendingTag, setPendingTags } = useGlobalTagsStore()
   const { syncAddTag, syncRemoveTags } = useSingleUserTagSync()
 
@@ -50,8 +50,13 @@ export function useTagsOperations() {
       ss.setTagLogicMode(tagLogicMode)
       ss.setKeyword('')
       ss.setScopes(['fragment'])
-      const results = ss.executeSearch(fragments)
-      setFilteredFragments(results)
+      
+      if (fragments) {
+        const results = ss.executeSearch(fragments)
+        setFilteredFragments(results)
+      } else {
+        console.warn('⚠️ fragments 為 null，無法執行搜尋')
+      }
     }
   }, [mode, pendingTags, removePendingTag, addPendingTag, selectedTags, setSelectedTags, excludedTags, setExcludedTags, tagLogicMode, fragments, recordTagUsage])
 
@@ -74,8 +79,13 @@ export function useTagsOperations() {
     ss.setTagLogicMode(tagLogicMode)
     ss.setKeyword('')
     ss.setScopes(['fragment'])
-    const results = ss.executeSearch(fragments)
-    setFilteredFragments(results)
+    
+    if (fragments) {
+      const results = ss.executeSearch(fragments)
+      setFilteredFragments(results)
+    } else {
+      console.warn('⚠️ fragments 為 null，無法執行搜尋')
+    }
   }, [mode, excludedTags, selectedTags, setExcludedTags, setSelectedTags, tagLogicMode, fragments])
 
   // 重命名標籤
@@ -111,6 +121,11 @@ export function useTagsOperations() {
       }
     }
 
+    if (!fragments) {
+      console.warn('⚠️ fragments 為 null，無法重命名標籤')
+      return
+    }
+
     const updatedFragments = fragments.map((fragment: any) => {
       if (fragment.tags.includes(oldName)) {
         return {
@@ -123,8 +138,7 @@ export function useTagsOperations() {
     })
 
     setFragments(updatedFragments)
-    save()
-  }, [mode, pendingTags, setPendingTags, selectedTags, setSelectedTags, excludedTags, setExcludedTags, fragments, setFragments, save])
+  }, [mode, pendingTags, setPendingTags, selectedTags, setSelectedTags, excludedTags, setExcludedTags, fragments, setFragments])
 
   // 刪除選中的標籤
   const handleDeleteSelectedTags = useCallback((selectedTagsToDelete: string[], allTags: any, setAllTags: any) => {
@@ -145,6 +159,11 @@ export function useTagsOperations() {
       setSelectedTags(selectedTags.filter((t: string) => !selectedTagsToDelete.includes(t)))
       setExcludedTags(excludedTags.filter((t: string) => !selectedTagsToDelete.includes(t)))
     }
+
+    if (!fragments) {
+      console.warn('⚠️ fragments 為 null，無法刪除標籤')
+      return
+    }
       
     const updatedFragments = fragments.map((fragment: any) => {
       if (fragment.tags.some((t: string) => selectedTagsToDelete.includes(t))) {
@@ -158,8 +177,7 @@ export function useTagsOperations() {
     })
     
     setFragments(updatedFragments)
-    save()
-  }, [mode, pendingTags, setPendingTags, selectedTags, setSelectedTags, excludedTags, setExcludedTags, fragments, setFragments, save, syncRemoveTags])
+  }, [mode, pendingTags, setPendingTags, selectedTags, setSelectedTags, excludedTags, setExcludedTags, fragments, setFragments, syncRemoveTags])
 
   // 狀態檢查函數
   const isPos = useCallback((tagName: string) => {

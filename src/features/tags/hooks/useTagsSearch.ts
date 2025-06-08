@@ -82,7 +82,7 @@ export function useTagsSearch(
       const searchStore = useSearchStore.getState()
       searchStore.setKeyword('')
       searchStore.setSearchResults([])
-      return fragments
+      return fragments || []
     }
 
     console.log(`執行碎片搜尋: "${trimmed}"`)
@@ -99,14 +99,23 @@ export function useTagsSearch(
     searchStoreInstance.setExcludedTags(searchStoreInstance.excludedTags || [])
 
     // 執行搜尋
-    const filtered = searchStoreInstance.executeSearch(fragments)
-    
+   if (!fragments) {
+    console.warn('⚠️ fragments 為 null，無法執行搜尋')
     updateState({
-      noResults: filtered.length === 0,
+      noResults: true,
       searchedKeyword: trimmed
     })
+    return []
+  }
 
-    return filtered
+  const filtered = searchStoreInstance.executeSearch(fragments)
+
+  updateState({
+    noResults: filtered.length === 0,
+    searchedKeyword: trimmed
+  })
+
+  return filtered
   }, [state.search, state.searchMode, fragments, updateState])
 
   // 處理搜尋模式變更
