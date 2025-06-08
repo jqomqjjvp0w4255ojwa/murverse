@@ -80,7 +80,6 @@ const TagsDrawerWindow = forwardRef<HTMLDivElement>((props, ref) => {
   const { 
     fragments, 
     setFragments, 
-    save, 
     selectedTags, 
     setSelectedTags, 
     excludedTags, 
@@ -145,7 +144,7 @@ const TagsDrawerWindow = forwardRef<HTMLDivElement>((props, ref) => {
   const { globalTags, initializeFromFragments } = useGlobalTagsStore()
   
   // 新增：過濾後的碎片狀態
-  const [filteredFragments, setFilteredFragments] = useState<any[]>(fragments)
+  const [filteredFragments, setFilteredFragments] = useState<any[]>([])
   
   // 參考組合 - 合併 drawerRef 和 tagsWindowRef
   const combinedRef = (node: HTMLDivElement | null) => {
@@ -172,8 +171,15 @@ const TagsDrawerWindow = forwardRef<HTMLDivElement>((props, ref) => {
   };
 
   
-  // 初始化標籤列表
+  // 🚀 修復：初始化標籤列表 - 檢查 fragments 是否為 null
   useEffect(() => {
+    if (!fragments) {
+      console.warn('⚠️ fragments 為 null，無法初始化標籤')
+      setAllTags([])
+      setFilteredFragments([])
+      return
+    }
+
     const map = new Map<string, number>()
     fragments.forEach((f: any) => f.tags.forEach((t: string) => map.set(t, (map.get(t) || 0) + 1)))
     const extra = JSON.parse(localStorage.getItem('mur_tags_global') || '[]') as string[]
@@ -264,10 +270,15 @@ useEffect(() => {
 
   useEffect(() => {
     if (searchMode === 'fragment' && !searchExecuted) {
+      // 🚀 修復：檢查 fragments 是否為 null
       const fragments = useFragmentsStore.getState().fragments
-      const searchStore = useSearchStore.getState()
-      searchStore.executeSearch(fragments)
-      console.log('🔍 初始執行搜尋以填充 searchResults')
+      if (fragments) {
+        const searchStore = useSearchStore.getState()
+        searchStore.executeSearch(fragments)
+        console.log('🔍 初始執行搜尋以填充 searchResults')
+      } else {
+        console.warn('⚠️ fragments 為 null，無法執行搜尋')
+      }
     }
   }, [searchMode, searchExecuted])
 
@@ -427,8 +438,11 @@ useEffect(() => {
     return () => window.removeEventListener('mouseup', handleDragEnd)
   }, [isTagDragging, draggingTag, isOverTagWindow, isCollected, addTag])
 
+  // 🚀 修復：檢查 fragments 是否為 null
   useEffect(() => {
-    initializeFromFragments(fragments)
+    if (fragments) {
+      initializeFromFragments(fragments)
+    }
   }, [fragments, initializeFromFragments])
 
   return (
