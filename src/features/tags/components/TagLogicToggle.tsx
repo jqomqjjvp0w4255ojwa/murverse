@@ -47,7 +47,7 @@ const TagLogicToggle: React.FC<TagLogicToggleProps> = ({
   // 在組件中獲取 fragments 和 executeSearch 方法
   const fragments = useFragmentsStore.getState().fragments
   
-  const handleClearSelection = () => {
+    const handleClearSelection = () => {
     if (mode === 'add') {
       setPendingTags([])
     } else {
@@ -60,10 +60,15 @@ const TagLogicToggle: React.FC<TagLogicToggleProps> = ({
       searchStore.setSelectedTags([])
       searchStore.setExcludedTags([])
       
-      // 重新執行搜索以更新顯示的碎片
-      searchStore.setKeyword('')
-      searchStore.setScopes(['fragment'])
-      searchStore.executeSearch(fragments)
+      // 🚀 修復：檢查 fragments 是否為 null
+      if (fragments) {
+        // 重新執行搜索以更新顯示的碎片
+        searchStore.setKeyword('')
+        searchStore.setScopes(['fragment'])
+        searchStore.executeSearch(fragments)
+      } else {
+        console.warn('⚠️ fragments 為 null，無法執行搜尋')
+      }
     }
   }
 
