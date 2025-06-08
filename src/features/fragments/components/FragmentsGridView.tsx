@@ -516,8 +516,6 @@ export default function FragmentsGridView({
           overflowY: 'auto'
         }}
       >
-        
-      
         <div 
           className="grid-content"
           style={{
@@ -526,8 +524,6 @@ export default function FragmentsGridView({
             width: '100%'
           }}
         >
-
-          
           {/* 🔧 修復：正確的狀態判斷優先級 */}
           
 

@@ -5,15 +5,34 @@ import FuzzyBallIcon from '@/features/fragments/components/card/base/FuzzyBallIc
 import { useFragmentsStore, useAppState } from '@/features/fragments/store/useFragmentsStore'
 import { RotateCcw } from 'lucide-react'
 
-
-
 const SourceIndicator: React.FC = () => {
   const { loadSource, isBackgroundRefreshing } = useAppState()
+  // ✅ 所有 hooks 都在組件頂層調用
   const [isHovering, setIsHovering] = useState(false)
   const [showPopover, setShowPopover] = useState(false)
   const load = useFragmentsStore(state => state.load)
   const popoverRef = useRef<HTMLDivElement>(null)
 
+  // ✅ useEffect 總是被調用
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+        setShowPopover(false)
+      }
+    }
+
+    if (showPopover) {
+      document.addEventListener('mousedown', handleClickOutside)
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showPopover])
+
+  // ✅ 條件性返回移到 hooks 之後
   if (!loadSource && !isBackgroundRefreshing) return null
 
   let color = '#6cab8c'
@@ -41,26 +60,8 @@ const SourceIndicator: React.FC = () => {
   const variant = isHovering ? baseVariant : 'none'
 
   const handleRefresh = () => {
-  load() // ✅ 呼叫 store 的 load 方法
+    load() // ✅ 呼叫 store 的 load 方法
   }
-
-  useEffect(() => {
-  function handleClickOutside(event: MouseEvent) {
-    if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
-      setShowPopover(false)
-    }
-  }
-
-  if (showPopover) {
-    document.addEventListener('mousedown', handleClickOutside)
-  } else {
-    document.removeEventListener('mousedown', handleClickOutside)
-  }
-
-  return () => {
-    document.removeEventListener('mousedown', handleClickOutside)
-  }
-  }, [showPopover])
 
   return (
     <div
@@ -83,11 +84,10 @@ const SourceIndicator: React.FC = () => {
       </div>
 
       {showPopover && (
-        
         <div
-            ref={popoverRef}
-            className="animate-fade-in"
-            style={{
+          ref={popoverRef}
+          className="animate-fade-in"
+          style={{
             position: 'absolute',
             top: '50%',
             left: '100%',
