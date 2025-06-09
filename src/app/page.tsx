@@ -19,7 +19,6 @@ const TagsFloatingWindow = dynamic(() =>
 const FloatingFragmentsField = dynamic(() => import('@/features/fragments/FloatingFragmentsField'), { ssr: false })
 const FragmentDetailModal = dynamic(() => import('@/features/fragments/components/FragmentDetailModal'), { ssr: false })
 const FloatingInputBar = dynamic(() => import('@/features/input/FloatingInputBar'), { ssr: false })
-const FloatingActionButton = dynamic(() => import('@/features/fragments/components/FloatingActionButton'), { ssr: false })
 const GroupFrame = dynamic(() => import('@/features/windows/GroupFrame'), { ssr: false })
 
 // 標籤拖曳相關組件
@@ -77,7 +76,6 @@ export default function Home() {
 
       {/* 公用組件 */}
       <FragmentDetailModal fragment={fragment} onClose={() => setFragment(null)} />
-      <FloatingActionButton />
       
       {/* 標籤拖曳預覽 - 在所有視圖模式下都顯示 */}
       {isDragging && draggingTag && dragPosition && (
