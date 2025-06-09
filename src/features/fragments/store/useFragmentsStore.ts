@@ -1,5 +1,4 @@
-
-// 🚀 最小修改版 useFragmentsStore.ts - 添加緩存支持
+// 🚀 修復版 useFragmentsStore.ts - 修復搜尋衝突問題
 'use client'
 
 import { create } from 'zustand'
@@ -56,7 +55,7 @@ interface FragmentsState {
   
   // 🚀 緩存相關狀態
   loadSource: LoadSource | null
-  isBackgroundRefreshing: boolean  // 🚀 新增：後台刷新狀態
+  isBackgroundRefreshing: boolean
   
   // === 操作方法 ===
   initialize: () => Promise<void>
@@ -83,6 +82,7 @@ interface FragmentsState {
   // === 篩選方法 ===
   getFilteredFragments: () => Fragment[]
   getFilteredFragmentsByAdvancedSearch: () => Fragment[]
+  getDisplayFragments: () => Fragment[] // 🚀 新增：統一的顯示碎片方法
   
   // === Fragment 操作 ===
   addFragment: (content: string, tags: string[], notes: Note[]) => Promise<void>
@@ -355,7 +355,7 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   setSearchKeyword: (keyword) => set({ searchKeyword: keyword }),
   setError: (error) => set({ error }),
 
-  // === 篩選方法（保持不變） ===
+  // === 🔧 修復的篩選方法 ===
   getFilteredFragments: () => {
     const {
       fragments,
@@ -367,11 +367,19 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
     } = get()
 
     if (!fragments) return []
-  
+
+    // 🔧 傳統篩選邏輯
+    console.log('🔍 useFragmentsStore.getFilteredFragments 被調用', {
+      hasSearchQuery: !!searchQuery,
+      hasSelectedTags: selectedTags.length > 0,
+      hasExcludedTags: excludedTags.length > 0,
+      hasAdvancedSearch: !!advancedSearch
+    })
+
     if (advancedSearch) {
       return get().getFilteredFragmentsByAdvancedSearch()
     }
-  
+
     const mode = 'substring'
     
     return fragments.filter(fragment => {
@@ -382,18 +390,77 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
         )
         if (!noteMatches) return false
       }
-  
+
       if (excludedTags.length > 0 && excludedTags.some(tag => fragment.tags.includes(tag))) {
         return false
       }
-  
+
       if (selectedTags.length === 0) return true
-  
+
       return tagLogicMode === 'AND'
         ? selectedTags.every(tag => fragment.tags.includes(tag))
         : selectedTags.some(tag => fragment.tags.includes(tag))
     })
   },
+
+// 🚀 新增：統一的顯示碎片獲取方法（所有顯示模式都使用）
+ getDisplayFragments: () => {
+  const currentFragments = get().fragments
+  if (!currentFragments) return []
+
+  // 🎯 優先使用 SearchStore 的統一顯示邏輯
+  let searchStoreState = null
+  try {
+    if (typeof window !== 'undefined' && (window as any).__SEARCH_STORE__) {
+      searchStoreState = (window as any).__SEARCH_STORE__.getState()
+    }
+  } catch (error) {
+    console.warn('🔧 無法訪問 SearchStore，使用傳統篩選邏輯')
+  }
+
+  if (searchStoreState) {
+    // 🚀 使用 SearchStore 的統一顯示邏輯
+    const displayFragments = searchStoreState.getDisplayFragments(currentFragments)
+    
+    console.log('🎯 Store 層協調：使用 SearchStore 統一邏輯', {
+      isSearchActive: searchStoreState.isSearchActive,
+      hasSearched: searchStoreState.hasSearched,
+      keyword: searchStoreState.keyword,
+      resultCount: displayFragments.length,
+      originalCount: currentFragments.length
+    })
+    
+    return displayFragments
+  }
+
+  // 🔧 回退到傳統篩選邏輯（如果 SearchStore 不可用）
+  const {
+    selectedTags,
+    excludedTags,
+    searchQuery,
+    advancedSearch
+  } = get()
+
+  const hasTraditionalFilters = selectedTags.length > 0 || 
+                                excludedTags.length > 0 || 
+                                searchQuery.trim() !== '' || 
+                                advancedSearch !== null
+
+  if (hasTraditionalFilters) {
+    const filtered = get().getFilteredFragments()
+    console.log('🔍 Store 層協調：使用傳統篩選', {
+      filteredCount: filtered.length,
+      originalCount: currentFragments.length
+    })
+    return filtered
+  }
+
+  // 🔧 最後返回所有碎片
+  console.log('📋 Store 層協調：顯示所有碎片', {
+    count: currentFragments.length
+  })
+  return currentFragments
+},
 
   getFilteredFragmentsByAdvancedSearch: () => {
     const { fragments, advancedSearch } = get()
@@ -643,10 +710,6 @@ export const useFragmentsStore = create<FragmentsState>((set, get) => ({
   }
 }))
 
-
-
-
-
 // 🎯 增強的狀態 Hook
 export function useAppState() {
   const { 
@@ -688,4 +751,4 @@ export function useAppState() {
     clearCache,
     getCacheStats
   }
-  }
+}

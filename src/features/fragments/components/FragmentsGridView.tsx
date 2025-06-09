@@ -1,27 +1,19 @@
-// 📄 精簡版 FragmentsGridView.tsx - 只包含必要修改
+// 📄 修復版 FragmentsGridView.tsx - 解決搜尋顯示問題
 'use client'
 
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
-import { LoadSource } from '@/features/fragments/store/useFragmentsStore'
 import TagDragPreview from './TagDragPreview'
 import { useHoverScrollbar } from '@/features/interaction/useHoverScrollbar'
 import FuzzyBallIcon from '@/features/fragments/components/card/base/FuzzyBallIcon'
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useFragmentsStore, useAppState, AppStatus } from '@/features/fragments/store/useFragmentsStore'
 import { Fragment } from '@/features/fragments/types/fragment'
-import { 
-  PixelPosition, 
-  GridFragment, 
-  GridPosition,
-  RelevanceMap 
-} from '@/features/fragments/types/gridTypes'
+import { RelevanceMap } from '@/features/fragments/types/gridTypes'
 import { GridFragmentCard } from './card'
 import FragmentDetailModal from './FragmentDetailModal'
 import { 
   useLayoutFragments, 
-  createDirectionMap,
-  gridToPixel,
-} from '@/features/fragments/layout/useLayoutFragments'
+  createDirectionMap,} from '@/features/fragments/layout/useLayoutFragments'
 import { useDragFragment } from '@/features/fragments/layout/useDragFragment'
 import { 
   GRID_SIZE,
@@ -42,21 +34,30 @@ export default function FragmentsGridView({
   resetLayout = false
 }: FragmentsGridViewProps) {
 
-  // 🔧 修改：使用簡化的狀態管理
-  const { fragments, setSelectedFragment } = useFragmentsStore()
+  // 🔧 Store 狀態
   const { 
-     status, 
-      error, 
-      hasInitialized,
-      isLoading,
-      hasFragments,
-      initialize: initializeApp,
-      // 🚀 新增這些
-      loadSource,
-      isFromCache,
-      isFromNetwork,
-      clearCache,
-      getCacheStats
+    fragments: originalFragments, 
+    setSelectedFragment,
+    getFilteredFragments,
+    getDisplayFragments, // 🚀 使用新的統一方法
+    selectedTags,
+    excludedTags,
+    searchQuery,
+    advancedSearch
+  } = useFragmentsStore()
+
+  const { 
+    status, 
+    error, 
+    hasInitialized,
+    isLoading,
+    hasFragments,
+    initialize: initializeApp,
+    loadSource,
+    isFromCache,
+    isFromNetwork,
+    clearCache,
+    getCacheStats
   } = useAppState()
 
   // 基本狀態
@@ -66,8 +67,17 @@ export default function FragmentsGridView({
   const positionsRef = useRef<PositionsMap>({})
   const [, forceUpdate] = useState({})
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // 使用篩選後的碎片
+  const fragments = useMemo(() => {
+    if (!originalFragments) return null
+    
+    // 🚀 使用統一的 Store 層協調方法
+    return getDisplayFragments()
+  }, [originalFragments, getDisplayFragments])
+
   const isInitialLoadRef = useRef(true)
-  const shouldShowLoading = status === AppStatus.LOADING || fragments === null
+  const shouldShowLoading = status === AppStatus.LOADING || originalFragments === null
   const shouldShowEmpty = !shouldShowLoading && Array.isArray(fragments) && fragments.length === 0
 
   // 登入處理
@@ -75,7 +85,7 @@ export default function FragmentsGridView({
     window.location.href = '/login'
   }
 
-  // 🔧 修改：簡化初始化
+  // 🔧 初始化
   useEffect(() => {
     initializeApp()
   }, [])
@@ -108,15 +118,27 @@ export default function FragmentsGridView({
   }, []);
 
   const { hovering: showScrollbar, bind: scrollbarBind } = useHoverScrollbar(30)
+
+  // 🔧 調試：監控碎片變化
+  useEffect(() => {
+    console.log('🎯 碎片狀態更新:', {
+      originalCount: originalFragments?.length || 0,
+      displayCount: fragments?.length || 0,
+      selectedTags,
+      excludedTags,
+      searchQuery,
+      hasAdvancedSearch: !!advancedSearch
+    })
+  }, [originalFragments, fragments, selectedTags, excludedTags, searchQuery, advancedSearch])
   
-  // 🔧 修改：處理 null 情況
+  // 🔧 處理 null 情況
   const directionMap = useMemo(() => createDirectionMap(fragments || []), [fragments]);
   
   const refreshView = useCallback(() => {
     forceUpdate({});
   }, []);
 
-  // 🔧 修改：處理 null 情況
+  // 🔧 處理 null 情況
   const { gridFragments, newPositions } = useLayoutFragments(
     fragments || [],
     positions, 
@@ -206,7 +228,7 @@ export default function FragmentsGridView({
     })
   }, [newPositions])
 
-  // 🔧 修改：清理無效位置時檢查 null
+  // 🔧 清理無效位置時檢查 null
   useEffect(() => {
     if (!fragments) return
     
@@ -338,7 +360,7 @@ export default function FragmentsGridView({
     };
   }, [gridFragments]);
 
-  // 🔧 超級簡化：狀態顯示組件
+  // 狀態顯示組件
   const StatusDisplay = ({ status }: { status: AppStatus }) => {
     const centerStyle = {
       position: 'absolute' as const,
@@ -366,7 +388,6 @@ export default function FragmentsGridView({
           <div style={centerStyle}>
             <FuzzyBallIcon size={40} variant="sway" />
             <div style={{ marginTop: '12px' }}>載入中...</div>
-            {/* 🚀 新增：顯示加載來源提示 */}
             {isFromCache && (
               <div style={{ marginTop: '8px', fontSize: '12px', opacity: 0.7 }}>
                 ⚡ 從緩存快速載入
@@ -409,18 +430,30 @@ export default function FragmentsGridView({
         )
 
       case AppStatus.EMPTY:
-      return (
-        <div style={centerStyle}>
-          <FuzzyBallIcon size={40} variant="sway" />
-          <div style={{ marginTop: '12px' }}>無碎片。</div>
-          {/* 🚀 新增：顯示數據來源 */}
-          {loadSource && (
-            <div style={{ marginTop: '8px', fontSize: '12px', opacity: 0.7 }}>
-              {isFromCache ? '緩存數據' : '🌐 網絡數據'}
+        return (
+          <div style={centerStyle}>
+            <FuzzyBallIcon size={40} variant="sway" />
+            <div style={{ marginTop: '12px' }}>
+              {/* 🔧 從 Store 層獲取搜尋狀態 */}
+              {(() => {
+                try {
+                  const searchState = (window as any).__SEARCH_STORE__?.getState()
+                  const searchKeyword = searchState?.keyword
+                  return searchKeyword && searchKeyword.trim() ? 
+                    `找不到包含「${searchKeyword}」的碎片` : 
+                    '無碎片。'
+                } catch {
+                  return '無碎片。'
+                }
+              })()}
             </div>
-          )}
-        </div>
-      )
+            {loadSource && (
+              <div style={{ marginTop: '8px', fontSize: '12px', opacity: 0.7 }}>
+                {isFromCache ? '緩存數據' : '🌐 網絡數據'}
+              </div>
+            )}
+          </div>
+        )
 
       default:
         return null
@@ -463,15 +496,13 @@ export default function FragmentsGridView({
   }, [])
 
   return (
-    
     <div className="fragments-container">
-       
       <div style={{
         textAlign: 'center',
         marginBottom: '12px',
         display: 'flex',
         justifyContent: 'center',
-        gap: '8px'  // 🚀 新增間距
+        gap: '8px'
       }}>
         <button
           onClick={handleResetLayout}
@@ -495,6 +526,8 @@ export default function FragmentsGridView({
         >
           重新排列碎片
         </button>
+
+        
       </div>
 
       <div 
@@ -524,9 +557,6 @@ export default function FragmentsGridView({
             width: '100%'
           }}
         >
-          {/* 🔧 修復：正確的狀態判斷優先級 */}
-          
-
           {shouldShowLoading ? (
             <StatusDisplay status={AppStatus.LOADING} />
           ) : status === AppStatus.UNAUTHENTICATED ? (

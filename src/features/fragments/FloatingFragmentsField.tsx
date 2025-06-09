@@ -227,7 +227,10 @@ function FragmentCountDisplay({
         <div style={{ fontSize: '12px', marginTop: '4px', color: '#aaa' }}>
           拼圖模式：數據由網格視圖內部管理
         </div>
+        
       )}
+
+   
     </div>
   )
 }

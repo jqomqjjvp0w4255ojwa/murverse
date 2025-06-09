@@ -14,14 +14,4 @@ export default function FloatingActionButton() {
   const toggleMode = () => {
     setMode(mode === 'grid' ? 'flow' : 'grid')
   }
-
-  return (
-    <button
-      onClick={toggleMode}
-      className="fixed bottom-6 right-6 p-4 rounded-full bg-blue-500 text-white shadow-lg hover:bg-blue-600 z-50"
-      title={`切換到${mode === 'grid' ? '社群流動' : '拼圖排列'}模式`}
-    >
-      {mode === 'grid' ? '切到流動' : '切到拼圖'}
-    </button>
-  )
 }

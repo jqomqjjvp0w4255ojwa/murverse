@@ -63,10 +63,8 @@ export function matchFragment(
   );
 
   // 檢查是否任何排除 token 匹配任何範圍內的文本
-  // 修正：對於排除語法，我們應該檢查任何文本是否包含要排除的值
   const excluded = excludeTokens.some(token => 
     textsToMatch.some(text => {
-      // 直接使用 matchText 來檢查是否包含要排除的值
       return matchText(text.toLowerCase(), token.value.toLowerCase(), mode);
     })
   );
@@ -79,6 +77,7 @@ export function matchFragment(
   return normalMatched && !excluded && orMatched;
 }
 
+// 🚀 修復：實現真正的完全符合邏輯
 export function matchText(text: string, keyword: string, mode: MatchMode): boolean {
   const src = text.toLowerCase().trim()
   const key = keyword.toLowerCase().trim()
@@ -87,16 +86,17 @@ export function matchText(text: string, keyword: string, mode: MatchMode): boole
 
   switch (mode) {
     case 'exact':
-      if (/^\d+$/.test(key)) {
-        // 如果是純數字，避免使用 \b 造成 miss
-        return src.split(/\s+/).includes(key)
-      } else {
-        return new RegExp(`\\b${escapeRegExp(key)}\\b`).test(src)
-      }
+      // 🔧 修復：真正的完全符合 - 整個文本必須與關鍵字完全一致
+      return src === key
+      
     case 'prefix':
+      // 開頭符合：文本必須以關鍵字開頭
       return src.startsWith(key)
+      
     case 'substring':
+      // 包含：文本中包含關鍵字即可
       return src.includes(key)
+      
     default:
       return false
   }
@@ -118,7 +118,8 @@ export function matchesSearchToken(
     case 'exclude':
       return !matchText(src, val, mode)
     case 'exact':
-      return src.includes(val)
+      // 對於 exact token type，強制使用完全符合
+      return src.trim() === val.trim()
     case 'wildcard': {
       const regex = new RegExp('^' + escapeRegExp(val).split('\\*').join('.*') + '$', 'i')
       return regex.test(text)

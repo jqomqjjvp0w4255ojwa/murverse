@@ -1,10 +1,13 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { useSearchStore } from '@/features/search/useSearchStore'
-import { useAdvancedSearch, SearchScope, MatchMode, TimeRange } from '@/features/search/useAdvancedSearch'
+import { useSearch } from '@/features/search/useSearchStore'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
-import { SearchService } from '@/features/search/SearchService'
+
+// 🚀 簡化：直接使用 useSearchStore 的類型
+export type SearchScope = 'fragment' | 'note' | 'tag'
+export type MatchMode = 'exact' | 'prefix' | 'substring'
+export type TimeRange = 'all' | 'today' | 'yesterday' | 'week' | 'month' | 'custom'
 
 interface AdvancedSearchPanelProps {
   onSearch: (results: any) => void
@@ -24,25 +27,39 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
   onClearLocalSearch, 
 }) => {
 
+  // 🚀 重構：統一使用 useSearch
   const {
-    query,
+    keyword,
     scopes,
     matchMode,
     timeRange,
     customDateRange,
-    setQuery,
+    setKeyword,
     setScopes,
     setMatchMode,
     setTimeRange,
-    setCustomTimeRange,
-    executeSearch,
-    clearSearch
-  } = useAdvancedSearch()
+    setCustomDateRange,
+    clearSearch,
+    search,
+    setAutoSearch
+  } = useSearch();
 
-  const searchOptionsRef = useRef<HTMLDivElement>(null)
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
-  
+  const { fragments } = useFragmentsStore();
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
+  // 🚀 初始化時關閉自動搜尋，避免不必要的觸發
+  useEffect(() => {
+    setAutoSearch(false);
+    
+    if (initialQuery) {
+      setKeyword(initialQuery);
+    }
+    
+    return () => {
+      setAutoSearch(true); // 組件卸載時恢復自動搜尋
+    };
+  }, [initialQuery, setKeyword, setAutoSearch]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -50,110 +67,100 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
     }
   };
 
-  useEffect(() => {
-    if (initialQuery) {
-      setQuery(initialQuery)
-    }
-  }, [initialQuery, setQuery])
-
+  // 🚀 大幅簡化：直接執行搜尋
   const handleExecuteSearch = () => {
-    const fragments = useFragmentsStore.getState().fragments;
-    const searchStore = useSearchStore.getState();
-  
-    // 🚀 修復：檢查 fragments 是否為 null 或空陣列
     if (!fragments || fragments.length === 0) {
-      console.warn('⚠️ 沒有可搜尋的碎片數據')
-      onSearch([])
-      return
+      console.warn('⚠️ 沒有可搜尋的碎片數據');
+      onSearch([]);
+      return;
     }
-  
-    const tokens = SearchService.parseSearchQuery(query, matchMode);
-  
-    const searchOptions = {
-      keyword: query,
-      tokens,
-      scopes,
-      matchMode,
-      timeRange,
-      customStartDate: customDateRange.start,
-      customEndDate: customDateRange.end,
-      selectedTags: searchStore.selectedTags || [],
-      excludedTags: searchStore.excludedTags || [],
-      tagLogicMode: searchStore.tagLogicMode || 'AND'
-    };
-  
-    console.log('🔍 執行搜尋 with:', searchOptions);
-  
-    // 🚀 修復：確保傳入的是 Fragment[] 而非 Fragment[] | null
-    const results = SearchService.search(fragments, searchOptions);
 
-  
-    // 更新搜尋相關全域狀態
-    useFragmentsStore.getState().setSearchKeyword(query);
-    searchStore.setKeyword(query);
-    searchStore.setScopes(scopes);
-    searchStore.setMatchMode(matchMode);
-    searchStore.setTimeRange(timeRange);
-    if (timeRange === 'custom') {
-      searchStore.setCustomDateRange(customDateRange.start, customDateRange.end);
-    }
-    searchStore.setSearchResults(results);
-  
+    console.log('🔍 執行進階搜尋:', {
+      keyword,
+      matchMode,
+      scopes,
+      timeRange
+    });
+
+    // 🚀 直接使用統一的搜尋方法
+    const results = search(fragments);
+    
     console.log(`✅ 搜尋完成，共找到 ${results.length} 筆資料`);
-  
+    
     // 回傳結果給外部元件
     onSearch(results);
   };
 
+  // 🚀 大幅簡化：清除搜尋
   const handleClearSearch = () => {
-    /* 1. 清空父層輸入框（TagsSearchBar） */
     onClearLocalSearch?.();
-  
-    /* 2. 一鍵還原 AdvancedSearch 內部全部狀態（含日期） */
-    clearSearch();        // ← useAdvancedSearch 裡的 clearSearch
-    setQuery('');
+    
     setStartDate('');
     setEndDate('');
-  
-    /* 3. 一鍵還原全域 SearchStore（用 clearSearch） */
-    useSearchStore.getState().clearSearch();
-  
-    /* 4. 告訴父層回復顯示全部碎片 */
-    const allFragments = useFragmentsStore.getState().fragments;
-    // 🚀 修復：確保傳入的是陣列而非 null
-    onSearch(allFragments || []);          // 讓 TagsFloatingWindow 與 UI 立即拿到全資料
-  
-    /* 5. 關閉「沒有結果」提示 */
+    
+    if (fragments) {
+      clearSearch(fragments);
+    }
+    
+    onSearch(fragments || []);
     onResetNoResults?.();
   };
 
+  // 🚀 簡化：範圍切換
   const toggleScope = (scope: SearchScope) => {
     if (scopes.includes(scope)) {
       if (scopes.length > 1) {
         const newScopes = scopes.filter(s => s !== scope);
-        setScopes(newScopes);
-        
-        // 立即更新 SearchStore 中的範圍設置
-        setTimeout(() => {
-          useSearchStore.getState().setScopes(newScopes);
-          console.log("更新搜索範圍為:", newScopes);
-        }, 0);
+        setScopes(newScopes, fragments || undefined);
       }
     } else {
       const newScopes = [...scopes, scope];
-      setScopes(newScopes);
-      
-      // 立即更新 SearchStore 中的範圍設置
-      setTimeout(() => {
-        useSearchStore.getState().setScopes(newScopes);
-        console.log("更新搜索範圍為:", newScopes);
-      }, 0);
+      setScopes(newScopes, fragments || undefined);
+    }
+  };
+
+  // 🚀 簡化：比對方式變更
+  const handleMatchModeChange = (mode: MatchMode) => {
+    console.log('🔧 變更比對方式為:', mode);
+    setMatchMode(mode, fragments || undefined);
+  };
+
+  // 🚀 簡化：時間範圍變更
+  const handleTimeRangeChange = (range: TimeRange) => {
+    console.log('🔧 變更時間範圍為:', range);
+    setTimeRange(range, fragments || undefined);
+  };
+
+  // 🚀 簡化：自訂日期處理
+  const handleStartDateChange = (dateValue: string) => {
+    setStartDate(dateValue);
+    if (dateValue) {
+      const start = new Date(dateValue);
+      setCustomDateRange(start, endDate ? new Date(endDate) : undefined, fragments || undefined);
+    }
+  };
+
+  const handleEndDateChange = (dateValue: string) => {
+    setEndDate(dateValue);
+    if (dateValue) {
+      const end = new Date(dateValue);
+      end.setHours(23, 59, 59, 999);
+      setCustomDateRange(startDate ? new Date(startDate) : undefined, end, fragments || undefined);
     }
   };
 
   return (
     <div className="w-full">
-       {/* 搜尋提示 - 移到搜尋條件前 */}
+          <div className="flex justify-end mb-2">
+      <button
+        type="button"
+        onClick={handleClearSearch}
+        className="px-3 py-0.5 text-gray-600 text-sm rounded hover:bg-gray-100"
+      >
+        重置條件
+      </button>
+    </div>
+       {/* 搜尋提示 */}
        {noResults && searchedKeyword.trim() && (
       <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-pink-50 text-pink-700 rounded-md">
         <svg
@@ -171,8 +178,7 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
       </div>
     )}
       
-      <div ref={searchOptionsRef} className="mb-2 bg-white rounded-lg text-sm">
-       
+      <div className="mb-2 bg-white rounded-lg text-sm">
         {/* 搜尋設定列 */}
         <div className="mb-2 p-2 bg-gray-50 rounded-md space-y-3">
           <div className="text-sm font-bold text-gray-700">搜尋方式</div>
@@ -196,7 +202,7 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
               ))}
             </div>
 
-            {/* 比對方式（整合） */}
+            {/* 比對方式 */}
             <div className="flex items-center gap-2 relative pb-2 mb-2 after:absolute after:left-0 after:bottom-0 after:w-full after:h-px after:bg-gray-200">
               <span className="text-sm font-medium text-gray-500 min-w-[36px]">比對</span>
               {[{ label: '完全符合', value: 'exact' },
@@ -204,7 +210,7 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
                 { label: '包含', value: 'substring' }].map(({ label, value }) => (
                 <button
                   key={value}
-                  onClick={() => setMatchMode(value as MatchMode)}
+                  onClick={() => handleMatchModeChange(value as MatchMode)}
                   type="button"
                   className={`px-2 py-0.5 rounded-full border text-xs transition 
                     ${matchMode === value
@@ -225,7 +231,7 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
             {[{ label: '全部時間', value: 'all' }, { label: '今天', value: 'today' }, { label: '本週', value: 'week' }, { label: '本月', value: 'month' }, { label: '自訂範圍', value: 'custom' }].map(({ label, value }) => (
               <button
                 key={value}
-                onClick={() => setTimeRange(value as TimeRange)}
+                onClick={() => handleTimeRangeChange(value as TimeRange)}
                 type="button"
                 className={`px-2 py-0.5 rounded-full border text-xs transition 
                   ${timeRange === value
@@ -243,54 +249,18 @@ const AdvancedSearchPanel: React.FC<AdvancedSearchPanelProps> = ({
                 type="date"
                 value={startDate}
                 className="w-full p-1.5 border border-gray-300 rounded text-sm"
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  if (e.target.value) {
-                    const start = new Date(e.target.value);
-                    setCustomTimeRange(start, endDate ? new Date(endDate) : undefined);
-                  }
-                }}
+                onChange={(e) => handleStartDateChange(e.target.value)}
               />
               <input
                 type="date"
                 value={endDate}
                 className="w-full p-1.5 border border-gray-300 rounded text-sm"
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  if (e.target.value) {
-                    const end = new Date(e.target.value);
-                    end.setHours(23, 59, 59, 999);
-                    setCustomTimeRange(startDate ? new Date(startDate) : undefined, end);
-                  }
-                }}
+                onChange={(e) => handleEndDateChange(e.target.value)}
               />
             </div>
           )}
         </div>
-
-        {/* 操作按鈕 */}
-        <div className="flex items-center pb-1">
-          <button
-            type="button"
-            onClick={handleClearSearch}
-            className="ml-auto px-3 py-0.5 text-gray-600 text-sm rounded hover:bg-gray-100"
-          >
-            清除條件
-          </button>
-        </div>
       </div>
-
-      {/* 搜尋語法說明 
-      <div className="mt-2 text-xs text-gray-600 border-t border-gray-200 pt-2 leading-relaxed">
-        支援語法：
-        <div className="mt-1">
-          <span className="inline-block bg-gray-100 px-1 rounded font-mono text-[11px] font-medium">+</span> 包含｜
-          <span className="inline-block bg-gray-100 px-1 rounded font-mono text-[11px] font-medium">-</span> 排除｜
-          <span className="inline-block bg-gray-100 px-1 rounded font-mono text-[11px] font-medium">OR</span> 任一｜
-          <span className="inline-block bg-gray-100 px-1 rounded font-mono text-[11px] font-medium">*</span> 萬用｜
-          <span className="inline-block bg-gray-100 px-1 rounded font-mono text-[11px] font-medium">'...'</span> 精確比對
-        </div>
-      </div>*/}
     </div>
   );
 };

@@ -1,11 +1,12 @@
-// hooks/useTagsSearch.ts
+// hooks/useTagsSearch.ts - 重構版：簡化邏輯，使用統一搜尋
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import { useSearchStore } from '@/features/search/useSearchStore'
+import { useSearch } from '@/features/search/useSearchStore'
 import { useFragmentsStore } from '@/features/fragments/store/useFragmentsStore'
 import { SearchService } from '@/features/search/SearchService'
 import { MetaTag } from '@/features/tags/constants/metaTags'
+import { Fragment } from '@/features/fragments/types/fragment'
 
 export interface TagsSearchState {
   // 搜尋相關
@@ -35,10 +36,9 @@ export interface TagsSearchActions {
   setOnlyShowSel: (value: boolean) => void
   addMetaTag: (tag: MetaTag) => void
   removeMetaTag: (tagId: string) => void
-  executeFragmentSearch: (searchText?: string) => void
+  executeFragmentSearch: (searchText?: string) => Fragment[]
   resetNoResults: () => void
   handleSearchModeChange: (newMode: 'tag' | 'fragment', isAddMode: boolean) => void
-  // 新增這三個：
   handleAddMetaTag: (tag: MetaTag) => void
   handleRemoveMetaTag: (tagId: string) => void
   toggleSearchFocus: (focused: boolean) => void
@@ -51,7 +51,7 @@ export function useTagsSearch(
   selectedTags: string[],
   excludedTags: string[]
 ) {
-  // 狀態管理
+  // 本地狀態管理（非搜尋相關）
   const [state, setState] = useState<TagsSearchState>({
     search: '',
     searchMode: 'tag',
@@ -67,80 +67,87 @@ export function useTagsSearch(
   })
 
   const { fragments } = useFragmentsStore()
+  
+  // 🚀 重構：直接使用統一的搜尋 Store
+  const {
+    keyword,
+    searchResults,
+    setKeyword,
+    search,
+    setAutoSearch,
+    clearSearch
+  } = useSearch()
 
   // 更新狀態的通用方法
   const updateState = useCallback((updates: Partial<TagsSearchState>) => {
     setState(prev => ({ ...prev, ...updates }))
   }, [])
 
-  // 搜尋執行邏輯
-  const executeFragmentSearch = useCallback((searchText = state.search) => {
+  // 🚀 大幅簡化：執行碎片搜尋
+  const executeFragmentSearch = useCallback((searchText = state.search): Fragment[] => {
     const trimmed = searchText.trim()
     
     if (!trimmed) {
       console.log("🔁 沒有輸入關鍵字，顯示全部碎片")
-      const searchStore = useSearchStore.getState()
-      searchStore.setKeyword('')
-      searchStore.setSearchResults([])
+      if (fragments) {
+        clearSearch(fragments)
+      }
+      updateState({
+        noResults: false,
+        searchedKeyword: '',
+        searchExecuted: false
+      })
       return fragments || []
     }
 
-    console.log(`執行碎片搜尋: "${trimmed}"`)
+    console.log(`🔍 執行碎片搜尋: "${trimmed}"`)
     updateState({ searchExecuted: true })
 
-    const searchStoreInstance = useSearchStore.getState()
-    const currentScopes = searchStoreInstance.scopes || [state.searchMode]
+    if (!fragments) {
+      console.warn('⚠️ fragments 為 null，無法執行搜尋')
+      updateState({
+        noResults: true,
+        searchedKeyword: trimmed
+      })
+      return []
+    }
 
-    // 更新 searchStore 狀態
-    searchStoreInstance.setScopes(currentScopes)
-    searchStoreInstance.setKeyword(trimmed)
-    searchStoreInstance.setMatchMode('substring')
-    searchStoreInstance.setSelectedTags(searchStoreInstance.selectedTags || [])
-    searchStoreInstance.setExcludedTags(searchStoreInstance.excludedTags || [])
+    // 🚀 簡化：直接使用統一搜尋方法
+    setKeyword(trimmed, fragments)
+    const results = search(fragments)
 
-    // 執行搜尋
-   if (!fragments) {
-    console.warn('⚠️ fragments 為 null，無法執行搜尋')
     updateState({
-      noResults: true,
+      noResults: results.length === 0,
       searchedKeyword: trimmed
     })
-    return []
-  }
 
-  const filtered = searchStoreInstance.executeSearch(fragments)
+    console.log(`✅ TagsSearch 搜尋完成，找到 ${results.length} 個結果`)
 
-  updateState({
-    noResults: filtered.length === 0,
-    searchedKeyword: trimmed
-  })
+    return results
+  }, [state.search, fragments, setKeyword, search, clearSearch, updateState])
 
-  return filtered
-  }, [state.search, state.searchMode, fragments, updateState])
-
-  // 處理搜尋模式變更
+  // 🚀 簡化：處理搜尋模式變更
   const handleSearchModeChange = useCallback((
     newMode: 'tag' | 'fragment', 
     isAddMode: boolean
   ) => {
     console.log(`搜尋模式變更: ${newMode}, 是否為添加模式: ${isAddMode}`)
     
-    const searchStore = useSearchStore.getState()
-    searchStore.setSearchMode(newMode)
-    searchStore.setKeyword('')
-    searchStore.setSelectedTags([])
-    searchStore.setExcludedTags([])
-    searchStore.setSearchResults([])
+    // 清除搜尋狀態
+    if (fragments) {
+      clearSearch(fragments)
+    }
 
     updateState({ 
       searchMode: newMode,
       search: '',
       noResults: false,
-      searchedKeyword: ''
+      searchedKeyword: '',
+      searchExecuted: false
     })
-  }, [updateState])
+  }, [fragments, clearSearch, updateState])
 
-  // 過濾並排序標籤
+  // 過濾並排序標籤（保持原邏輯）
   const getShownTags = useMemo(() => {
     const tokens = SearchService.parseSearchQuery(state.search, 'substring')
     
@@ -186,7 +193,7 @@ export function useTagsSearch(
       })
   }, [state.search, state.sortMode, state.onlyShowSel, allTags, recentlyUsedTags, mode, selectedTags, excludedTags])
 
-  // Meta 標籤操作
+  // Meta 標籤操作（保持原邏輯）
   const addMetaTag = useCallback((tag: MetaTag) => {
     updateState({
       selectedMetaTags: state.selectedMetaTags.some(t => t.id === tag.id)
@@ -202,7 +209,7 @@ export function useTagsSearch(
     })
   }, [state.selectedMetaTags, updateState])
 
-  // Actions 對象
+  // 🚀 重構後的 Actions 對象
   const actions: TagsSearchActions = {
     setSearch: (value: string) => updateState({ search: value }),
     setSearchMode: (mode: 'tag' | 'fragment') => updateState({ searchMode: mode }),
@@ -211,9 +218,8 @@ export function useTagsSearch(
     addMetaTag,
     removeMetaTag,
     executeFragmentSearch,
-    resetNoResults: () => updateState({ noResults: false, searchedKeyword: '' }),
+    resetNoResults: () => updateState({ noResults: false, searchedKeyword: '', searchExecuted: false }),
     handleSearchModeChange,
-    // 新增這三個函數：
     handleAddMetaTag: addMetaTag,
     handleRemoveMetaTag: removeMetaTag,
     toggleSearchFocus: (focused: boolean) => updateState({ showSpecialTags: focused })
@@ -224,6 +230,12 @@ export function useTagsSearch(
     actions,
     derived: {
       shownTags: getShownTags
+    },
+    // 🚀 新增：暴露統一搜尋狀態
+    search: {
+      keyword,
+      results: searchResults,
+      isSearching: keyword.trim() !== ''
     }
   }
 }

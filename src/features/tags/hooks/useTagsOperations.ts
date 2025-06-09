@@ -10,7 +10,7 @@ import { useSingleUserTagSync } from '@/shared/hook/useSingleUserTagSync'
 
 export function useTagsOperations() {
   // Store hooks - 移除 save
-  const { fragments, setFragments, selectedTags, setSelectedTags, excludedTags, setExcludedTags, tagLogicMode } = useFragmentsStore()
+  const { fragments, setFragments, selectedTags, setSelectedTags, excludedTags, setExcludedTags, tagLogicMode, getFilteredFragments } = useFragmentsStore()
   const { mode, pendingTags, addPendingTag, removePendingTag, setPendingTags } = useGlobalTagsStore()
   const { syncAddTag, syncRemoveTags } = useSingleUserTagSync()
 
@@ -26,7 +26,7 @@ export function useTagsOperations() {
   }, [])
 
   // 選擇標籤
-  const handleTagSelect = useCallback((tagName: string, editMode: boolean, setFilteredFragments: any) => {
+  const handleTagSelect = useCallback((tagName: string, editMode: boolean) => {
     if (mode === 'add' && isSystemTag(tagName)) return
     if (editMode) return
 
@@ -43,25 +43,12 @@ export function useTagsOperations() {
       setSelectedTags(newSelected)
       setExcludedTags(newExcluded)
 
-      // 更新搜尋結果
-      const ss = useSearchStore.getState()
-      ss.setSelectedTags(newSelected)
-      ss.setExcludedTags(newExcluded)
-      ss.setTagLogicMode(tagLogicMode)
-      ss.setKeyword('')
-      ss.setScopes(['fragment'])
-      
-      if (fragments) {
-        const results = ss.executeSearch(fragments)
-        setFilteredFragments(results)
-      } else {
-        console.warn('⚠️ fragments 為 null，無法執行搜尋')
-      }
+      console.log('標籤選擇後執行篩選:', { newSelected, newExcluded })
     }
   }, [mode, pendingTags, removePendingTag, addPendingTag, selectedTags, setSelectedTags, excludedTags, setExcludedTags, tagLogicMode, fragments, recordTagUsage])
 
   // 排除標籤
-  const handleTagExclude = useCallback((tagName: string, editMode: boolean, setFilteredFragments: any) => {
+  const handleTagExclude = useCallback((tagName: string, editMode: boolean) => {
     if (editMode || mode === 'add') return
 
     const newExcluded = excludedTags.includes(tagName)
@@ -73,20 +60,8 @@ export function useTagsOperations() {
     setSelectedTags(newSelected)
 
     // 更新搜尋結果
-    const ss = useSearchStore.getState()
-    ss.setSelectedTags(newSelected)
-    ss.setExcludedTags(newExcluded)
-    ss.setTagLogicMode(tagLogicMode)
-    ss.setKeyword('')
-    ss.setScopes(['fragment'])
-    
-    if (fragments) {
-      const results = ss.executeSearch(fragments)
-      setFilteredFragments(results)
-    } else {
-      console.warn('⚠️ fragments 為 null，無法執行搜尋')
-    }
-  }, [mode, excludedTags, selectedTags, setExcludedTags, setSelectedTags, tagLogicMode, fragments])
+    console.log('標籤排除後執行篩選:', { newSelected, newExcluded })
+    }, [mode, excludedTags, selectedTags, setExcludedTags, setSelectedTags, tagLogicMode, fragments])
 
   // 重命名標籤
   const handleTagRename = useCallback((oldName: string, newName: string, allTags: any, setAllTags: any) => {

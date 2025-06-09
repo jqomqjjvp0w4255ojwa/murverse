@@ -30,7 +30,7 @@ import { DEFAULT_META_TAGS, MetaTag } from '@/features/tags/constants/metaTags'
 import { MetaTagsService } from '@/features/tags/services/MetaTagsService'
 import { SearchService } from '@/features/search/SearchService'
 import { useSearchStore } from '@/features/search/useSearchStore'
-import { useAdvancedSearch } from '@/features/search/useAdvancedSearch'
+import { useSearch } from '@/features/search/useSearchStore'
 import { SYSTEM_TAGS, isSystemTag } from '@/features/tags/constants/systemTags'
 import TagDropZone from './components/TagDropZone'
 import { useTagDragManager } from '@/features/fragments/layout/useTagDragManager'
@@ -75,7 +75,7 @@ const TagsDrawerWindow = forwardRef<HTMLDivElement>((props, ref) => {
 
   const {
     customDateRange
-  } = useAdvancedSearch();
+  } = useSearchStore();
 
   const { 
     fragments, 
@@ -143,9 +143,6 @@ const TagsDrawerWindow = forwardRef<HTMLDivElement>((props, ref) => {
   const [tagViewMode, setTagViewMode] = useState<'personal' | 'global'>('personal')
   const { globalTags, initializeFromFragments } = useGlobalTagsStore()
   
-  // 新增：過濾後的碎片狀態
-  const [filteredFragments, setFilteredFragments] = useState<any[]>([])
-  
   // 參考組合 - 合併 drawerRef 和 tagsWindowRef
   const combinedRef = (node: HTMLDivElement | null) => {
     drawerRef.current = node
@@ -176,7 +173,6 @@ const TagsDrawerWindow = forwardRef<HTMLDivElement>((props, ref) => {
     if (!fragments) {
       console.warn('⚠️ fragments 為 null，無法初始化標籤')
       setAllTags([])
-      setFilteredFragments([])
       return
     }
 
@@ -186,7 +182,6 @@ const TagsDrawerWindow = forwardRef<HTMLDivElement>((props, ref) => {
     extra.forEach(t => map.set(t, map.get(t) || 0))
     setAllTags([...map.entries()].map(([name, count]) => ({ name, count })))
     
-    setFilteredFragments(fragments)
   }, [fragments])
 
   // 載入最近使用的標籤
@@ -314,11 +309,6 @@ useEffect(() => {
     setSearch('')
   }
 
-  const handleAdvancedSearch = (results: any) => {
-    console.log('搜尋結果：', results)
-    setFilteredFragments(results)
-  }
-
   // 切換標籤選擇
   const handleTagSelectionToggle = (tagName: string) => {
     setSelectedTagsToDelete(prev => 
@@ -392,16 +382,7 @@ useEffect(() => {
   useEffect(() => {
     const searchStoreInstance = useSearchStore.getState()
     searchStoreInstance.setSearchMode(searchMode)
-    
-    const unsubscribe = useSearchStore.subscribe((state) => {
-      if (state.searchResults && state.searchResults.length > 0) {
-        setFilteredFragments(state.searchResults)
-      }
-    })
-    
-    return () => {
-      unsubscribe()
-    }
+
   }, [])
 
   // 處理標籤拖放到窗口
@@ -695,8 +676,8 @@ useEffect(() => {
                 editValue={editValue}
                 sortMode={sortMode}
                 onScroll={handleTagListScroll}
-                onTagSelect={(tagName) => tagsOperations.handleTagSelect(tagName, editMode, setFilteredFragments)}
-                onTagExclude={(tagName) => tagsOperations.handleTagExclude(tagName, editMode, setFilteredFragments)}
+                onTagSelect={(tagName) => tagsOperations.handleTagSelect(tagName, editMode)}
+                onTagExclude={(tagName) => tagsOperations.handleTagExclude(tagName, editMode)}
                 onTagRename={(oldName, newName) => tagsOperations.handleTagRename(oldName, newName, allTags, setAllTags)}
                 onTagSelectionToggle={handleTagSelectionToggle}
                 onSetEditingTag={setEditingTag}
@@ -711,7 +692,7 @@ useEffect(() => {
           {!editMode && searchMode === 'fragment' && (
             <div className="flex-1 overflow-auto">
               <AdvancedSearchPanel
-                onSearch={handleAdvancedSearch}
+                onSearch={() => {}}
                 noResults={noResults}
                 searchedKeyword={searchedKeyword}
                 onResetNoResults={resetNoResults}
